@@ -1,4 +1,4 @@
-module Theme exposing (Attribute, Context, Element, button, colors, column, darken, fontSizes, grid, onCtrlEnter, onEnter, padding, row, sizes, spacing, wrappedRow)
+module Theme exposing (Attribute, Context, Element, button, colors, column, darken, fontSizes, grid, onCtrlEnter, onEnter, padding, row, sizes, spacing, text, wrappedRow)
 
 import Color
 import Element.WithContext as Element exposing (Color, el, none, rgb, rgba, shrink)
@@ -7,10 +7,11 @@ import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
 import Html.Events
 import Json.Decode as Decode
+import Translations
 
 
 type alias Context =
-    {}
+    { i18n : Translations.I18n }
 
 
 type alias Element msg =
@@ -176,3 +177,8 @@ onCtrlEnter msg =
 button : List (Attribute msg) -> { onPress : Maybe msg, label : Element msg } -> Element msg
 button attrs =
     Input.button (Border.width sizes.borderWidth :: padding :: attrs)
+
+
+text : (Translations.I18n -> String) -> Element msg
+text f =
+    Element.with (\{ i18n } -> f i18n) Element.text
