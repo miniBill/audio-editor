@@ -1,6 +1,7 @@
-build
+dist
 node_modules
 elm-stuff
+src/Translations.elm
 
 # Ignore Yarn caches
 .yarn/*

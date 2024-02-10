@@ -3,10 +3,12 @@
   "license": "MIT",
   "devDependencies": {
     "elm-review": "^2.10.3",
-    "elm-watch": "^2.0.0-beta.2"
+    "elm-watch": "^2.0.0-beta.2",
+    "travelm-agency": "^3.4.1"
   },
   "scripts": {
     "start": "yarn elm-watch hot",
-    "build": "yarn elm-watch make"
+    "build": "yarn elm-watch make",
+    "build:translation": "rm -rf dist/i18n; yarn travelm-agency --i18n_arg_first translations --hash"
   }
 }

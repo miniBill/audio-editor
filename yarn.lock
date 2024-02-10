@@ -5,6 +5,41 @@ __metadata:
   version: 8
   cacheKey: 10c0
 
+"@avh4/elm-format-darwin-arm64@npm:0.8.7-2":
+  version: 0.8.7-2
+  resolution: "@avh4/elm-format-darwin-arm64@npm:0.8.7-2"
+  conditions: os=darwin & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@avh4/elm-format-darwin-x64@npm:0.8.7-2":
+  version: 0.8.7-2
+  resolution: "@avh4/elm-format-darwin-x64@npm:0.8.7-2"
+  conditions: os=darwin & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@avh4/elm-format-linux-arm64@npm:0.8.7-2":
+  version: 0.8.7-2
+  resolution: "@avh4/elm-format-linux-arm64@npm:0.8.7-2"
+  conditions: os=linux & cpu=arm64
+  languageName: node
+  linkType: hard
+
+"@avh4/elm-format-linux-x64@npm:0.8.7-2":
+  version: 0.8.7-2
+  resolution: "@avh4/elm-format-linux-x64@npm:0.8.7-2"
+  conditions: os=linux & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@avh4/elm-format-win32-x64@npm:0.8.7-2":
+  version: 0.8.7-2
+  resolution: "@avh4/elm-format-win32-x64@npm:0.8.7-2"
+  conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
 "@isaacs/cliui@npm:^8.0.2":
   version: 8.0.2
   resolution: "@isaacs/cliui@npm:8.0.2"
@@ -363,6 +398,17 @@ __metadata:
   languageName: node
   linkType: hard
 
+"cliui@npm:^8.0.1":
+  version: 8.0.1
+  resolution: "cliui@npm:8.0.1"
+  dependencies:
+    string-width: "npm:^4.2.0"
+    strip-ansi: "npm:^6.0.1"
+    wrap-ansi: "npm:^7.0.0"
+  checksum: 4bda0f09c340cbb6dfdc1ed508b3ca080f12992c18d68c6be4d9cf51756033d5266e61ec57529e610dacbf4da1c634423b0c1b11037709cc6b09045cbd815df5
+  languageName: node
+  linkType: hard
+
 "clone-response@npm:^1.0.2":
   version: 1.0.3
   resolution: "clone-response@npm:1.0.3"
@@ -454,6 +500,32 @@ __metadata:
   version: 0.2.0
   resolution: "eastasianwidth@npm:0.2.0"
   checksum: 26f364ebcdb6395f95124fda411f63137a4bfb5d3a06453f7f23dfe52502905bd84e0488172e0f9ec295fdc45f05c23d5d91baf16bd26f0fe9acd777a188dc39
+  languageName: node
+  linkType: hard
+
+"elm-format@npm:0.8.7":
+  version: 0.8.7
+  resolution: "elm-format@npm:0.8.7"
+  dependencies:
+    "@avh4/elm-format-darwin-arm64": "npm:0.8.7-2"
+    "@avh4/elm-format-darwin-x64": "npm:0.8.7-2"
+    "@avh4/elm-format-linux-arm64": "npm:0.8.7-2"
+    "@avh4/elm-format-linux-x64": "npm:0.8.7-2"
+    "@avh4/elm-format-win32-x64": "npm:0.8.7-2"
+  dependenciesMeta:
+    "@avh4/elm-format-darwin-arm64":
+      optional: true
+    "@avh4/elm-format-darwin-x64":
+      optional: true
+    "@avh4/elm-format-linux-arm64":
+      optional: true
+    "@avh4/elm-format-linux-x64":
+      optional: true
+    "@avh4/elm-format-win32-x64":
+      optional: true
+  bin:
+    elm-format: bin/elm-format
+  checksum: fd10b2c4a450b78d9d18145cd53ca9c3fed9be05d49eb38fe156f49e5c7e860d8ca44a250b063fcce3e76d0afebb2538bef3ca500f9c7594421cb4b9335f6547
   languageName: node
   linkType: hard
 
@@ -553,6 +625,13 @@ __metadata:
   version: 2.0.3
   resolution: "err-code@npm:2.0.3"
   checksum: b642f7b4dd4a376e954947550a3065a9ece6733ab8e51ad80db727aaae0817c2e99b02a97a3d6cecc648a97848305e728289cf312d09af395403a90c9d4d8a66
+  languageName: node
+  linkType: hard
+
+"escalade@npm:^3.1.1":
+  version: 3.1.2
+  resolution: "escalade@npm:3.1.2"
+  checksum: 6b4adafecd0682f3aa1cd1106b8fff30e492c7015b178bc81b2d2f75106dabea6c6d6e8508fc491bd58e597c74abb0e8e2368f943ecb9393d4162e3c2f3cf287
   languageName: node
   linkType: hard
 
@@ -665,6 +744,13 @@ __metadata:
   dependencies:
     node-gyp: "npm:latest"
   conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"get-caller-file@npm:^2.0.5":
+  version: 2.0.5
+  resolution: "get-caller-file@npm:2.0.5"
+  checksum: c6c7b60271931fa752aeb92f2b47e355eac1af3a2673f47c9589e8f8a41adc74d45551c1bc57b5e66a80609f10ffb72b6f575e4370d61cc3f7f3aaff01757cde
   languageName: node
   linkType: hard
 
@@ -829,6 +915,13 @@ __metadata:
   version: 2.0.4
   resolution: "inherits@npm:2.0.4"
   checksum: 4e531f648b29039fb7426fb94075e6545faa1eb9fe83c29f0b6d9e7263aceb4289d2d4557db0d428188eeb449cc7c5e77b0a0b2c4e248ff2a65933a0dee49ef2
+  languageName: node
+  linkType: hard
+
+"intl-proxy@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "intl-proxy@npm:1.0.1"
+  checksum: 0be3cca60086e1974e9179d3a69f023558ec32005f16017cb97a2316e71d2b7f6c4dacfa6fa190240de13b38801efed32eca9622b7e7c92fd8e95a4df1a3f785
   languageName: node
   linkType: hard
 
@@ -1408,6 +1501,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"require-directory@npm:^2.1.1":
+  version: 2.1.1
+  resolution: "require-directory@npm:2.1.1"
+  checksum: 83aa76a7bc1531f68d92c75a2ca2f54f1b01463cb566cf3fbc787d0de8be30c9dbc211d1d46be3497dac5785fe296f2dd11d531945ac29730643357978966e99
+  languageName: node
+  linkType: hard
+
 "resolve-alpn@npm:^1.0.0":
   version: 1.2.1
   resolution: "resolve-alpn@npm:1.2.1"
@@ -1458,6 +1558,7 @@ __metadata:
   dependencies:
     elm-review: "npm:^2.10.3"
     elm-watch: "npm:^2.0.0-beta.2"
+    travelm-agency: "npm:^3.4.1"
   languageName: unknown
   linkType: soft
 
@@ -1560,7 +1661,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"string-width-cjs@npm:string-width@^4.2.0, string-width@npm:^4.1.0":
+"string-width-cjs@npm:string-width@^4.2.0, string-width@npm:^4.1.0, string-width@npm:^4.2.0, string-width@npm:^4.2.3":
   version: 4.2.3
   resolution: "string-width@npm:4.2.3"
   dependencies:
@@ -1668,6 +1769,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"travelm-agency@npm:^3.4.1":
+  version: 3.4.1
+  resolution: "travelm-agency@npm:3.4.1"
+  dependencies:
+    elm-format: "npm:0.8.7"
+    intl-proxy: "npm:^1.0.1"
+    yargs: "npm:^17.4.0"
+  bin:
+    travelm-agency: index.js
+  checksum: 361ccff64b6562e65b182c83fa6e7c9ea4db2b307c07bf8f9887c2dad9b0ee5cfe51245b594d25a580741f782842c45036568013a1f33f4a0e90e8567ed09bd2
+  languageName: node
+  linkType: hard
+
 "type-fest@npm:^0.21.3":
   version: 0.21.3
   resolution: "type-fest@npm:0.21.3"
@@ -1745,7 +1859,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0":
+"wrap-ansi-cjs@npm:wrap-ansi@^7.0.0, wrap-ansi@npm:^7.0.0":
   version: 7.0.0
   resolution: "wrap-ansi@npm:7.0.0"
   dependencies:
@@ -1800,9 +1914,38 @@ __metadata:
   languageName: node
   linkType: hard
 
+"y18n@npm:^5.0.5":
+  version: 5.0.8
+  resolution: "y18n@npm:5.0.8"
+  checksum: 4df2842c36e468590c3691c894bc9cdbac41f520566e76e24f59401ba7d8b4811eb1e34524d57e54bc6d864bcb66baab7ffd9ca42bf1eda596618f9162b91249
+  languageName: node
+  linkType: hard
+
 "yallist@npm:^4.0.0":
   version: 4.0.0
   resolution: "yallist@npm:4.0.0"
   checksum: 2286b5e8dbfe22204ab66e2ef5cc9bbb1e55dfc873bbe0d568aa943eb255d131890dfd5bf243637273d31119b870f49c18fcde2c6ffbb7a7a092b870dc90625a
+  languageName: node
+  linkType: hard
+
+"yargs-parser@npm:^21.1.1":
+  version: 21.1.1
+  resolution: "yargs-parser@npm:21.1.1"
+  checksum: f84b5e48169479d2f402239c59f084cfd1c3acc197a05c59b98bab067452e6b3ea46d4dd8ba2985ba7b3d32a343d77df0debd6b343e5dae3da2aab2cdf5886b2
+  languageName: node
+  linkType: hard
+
+"yargs@npm:^17.4.0":
+  version: 17.7.2
+  resolution: "yargs@npm:17.7.2"
+  dependencies:
+    cliui: "npm:^8.0.1"
+    escalade: "npm:^3.1.1"
+    get-caller-file: "npm:^2.0.5"
+    require-directory: "npm:^2.1.1"
+    string-width: "npm:^4.2.3"
+    y18n: "npm:^5.0.5"
+    yargs-parser: "npm:^21.1.1"
+  checksum: ccd7e723e61ad5965fffbb791366db689572b80cca80e0f96aad968dfff4156cd7cd1ad18607afe1046d8241e6fb2d6c08bf7fa7bfb5eaec818735d8feac8f05
   languageName: node
   linkType: hard
