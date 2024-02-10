@@ -1,0 +1,12 @@
+{
+  "packageManager": "yarn@4.0.2",
+  "license": "MIT",
+  "devDependencies": {
+    "elm-review": "^2.10.3",
+    "elm-watch": "^2.0.0-beta.2"
+  },
+  "scripts": {
+    "start": "yarn elm-watch hot",
+    "build": "yarn elm-watch make"
+  }
+}
