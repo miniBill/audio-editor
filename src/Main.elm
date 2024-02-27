@@ -420,9 +420,11 @@ volumeSlider =
 durationToString : Duration -> String
 durationToString duration =
     let
+        seconds : Float
         seconds =
             Float.Extra.modBy 60 (Duration.inSeconds duration)
 
+        minutes : Int
         minutes =
             (Duration.inSeconds duration - seconds) / 60 |> floor
     in
