@@ -324,16 +324,8 @@ innerView audioData model =
                                 }
                             ]
                         , textInvariant name
-                        , case Dict.get name model.loadedTracks of
-                            Nothing ->
-                                Element.none
-
-                            Just source ->
-                                el [ Font.family [ Font.monospace ] ] <|
-                                    textInvariant <|
-                                        durationToString (Duration.from from model.now)
-                                            ++ " / "
-                                            ++ durationToString (Audio.length audioData source)
+                        , timeTracker audioData model name <|
+                            Duration.from from model.now
                         ]
 
                 Paused name at ->
@@ -346,19 +338,25 @@ innerView audioData model =
                                 }
                             ]
                         , textInvariant name
-                        , case Dict.get name model.loadedTracks of
-                            Nothing ->
-                                Element.none
-
-                            Just source ->
-                                textInvariant <|
-                                    durationToString at
-                                        ++ "."
-                                        ++ durationToString (Audio.length audioData source)
+                        , timeTracker audioData model name at
                         ]
             , playButtons model.loadedTracks
             ]
         ]
+
+
+timeTracker : AudioData -> Model -> String -> Duration -> Element msg
+timeTracker audioData model name duration =
+    case Dict.get name model.loadedTracks of
+        Nothing ->
+            Element.none
+
+        Just source ->
+            el [ Font.family [ Font.monospace ] ] <|
+                textInvariant <|
+                    durationToString duration
+                        ++ " / "
+                        ++ durationToString (Audio.length audioData source)
 
 
 playButtons : Dict String Audio.Source -> Element Msg
