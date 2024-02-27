@@ -1,4 +1,6 @@
 loaded = Loaded
 play = Play {$trackName}
-playing = Playing {$trackName}
+playing = Playing
+pause = Pause
 paused = Paused
+resume = Resume

@@ -3,9 +3,10 @@ port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Dict exposing (Dict)
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignRight, centerX, centerY, el, fill, height, px, width)
+import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, el, fill, height, px, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
+import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
 import Http
 import Json.Decode
@@ -62,6 +63,8 @@ type Msg
 
 type TimedMsg
     = Play String
+    | Pause
+    | Resume
 
 
 main : Program Flags (Audio.Model Msg Model) (Audio.Msg Msg)
@@ -219,6 +222,30 @@ update _ msg ({ context } as model) =
         TimedMsg (Play song) now ->
             pure { model | playing = Playing song now }
 
+        TimedMsg Pause now ->
+            pure
+                { model
+                    | playing =
+                        case model.playing of
+                            Playing song from ->
+                                Paused song <| Duration.from from now
+
+                            _ ->
+                                model.playing
+                }
+
+        TimedMsg Resume now ->
+            pure
+                { model
+                    | playing =
+                        case model.playing of
+                            Paused song duration ->
+                                Playing song <| Duration.subtractFrom now duration
+
+                            _ ->
+                                model.playing
+                }
+
         LoadedAudio (Err e) ->
             let
                 _ =
@@ -265,33 +292,12 @@ innerView : Model -> Element Msg
 innerView model =
     column [ width fill, height fill ]
         [ menuBar
-        , Theme.column [ Theme.padding, width fill ]
-            [ Dict.keys model.loadedTracks
-                |> List.map
-                    (\t ->
-                        Theme.button []
-                            { label =
-                                t
-                                    |> String.split " - "
-                                    |> List.drop 2
-                                    |> String.join " - "
-                                    |> Translations.play
-                                    |> text
-                            , onPress = Just <| UntimedMsg <| Play t
-                            }
-                    )
-                |> (::) (text Translations.loaded)
-                |> Theme.wrappedRow []
-            , case model.playing of
-                Stopped ->
-                    Element.none
-
-                Playing name _ ->
-                    text <| Translations.playing name
-
-                Paused name _ ->
-                    text Translations.paused
-            , Input.slider
+        , Theme.column
+            [ Theme.padding
+            , width fill
+            , height fill
+            ]
+            [ Input.slider
                 [ height (px 30)
                 , width fill
 
@@ -309,7 +315,7 @@ innerView model =
                 ]
                 { onChange = Volume
                 , label =
-                    Input.labelAbove []
+                    Input.labelAbove [ Font.bold ]
                         (text <| \_ -> "Main volume")
                 , min = 0
                 , max = 1
@@ -317,6 +323,49 @@ innerView model =
                 , value = model.mainVolume
                 , thumb = Input.defaultThumb
                 }
+            , case model.playing of
+                Stopped ->
+                    Element.none
+
+                Playing name _ ->
+                    Theme.column []
+                        [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.playing
+                            , Theme.button []
+                                { onPress = Just <| UntimedMsg Pause
+                                , label = text Translations.pause
+                                }
+                            ]
+                        , text <| \_ -> name
+                        ]
+
+                Paused name _ ->
+                    Theme.column []
+                        [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.paused
+                            , Theme.button []
+                                { onPress = Just <| UntimedMsg Resume
+                                , label = text Translations.resume
+                                }
+                            ]
+                        , text <| \_ -> name
+                        ]
+            , Dict.keys model.loadedTracks
+                |> List.map
+                    (\t ->
+                        Theme.button []
+                            { label =
+                                t
+                                    |> String.split " - "
+                                    |> List.drop 2
+                                    |> String.join " - "
+                                    |> Translations.play
+                                    |> text
+                            , onPress = Just <| UntimedMsg <| Play t
+                            }
+                    )
+                |> (::) (el [ Font.bold ] <| text Translations.loaded)
+                |> Theme.wrappedRow [ alignBottom ]
             ]
         ]
 
