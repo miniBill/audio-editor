@@ -21,31 +21,31 @@ function startAudio(app) {
      * @param {string} audioUrl
      * @param {number} requestId
      */
-    function loadAudio(audioUrl, requestId) {
-      fetch(audioUrl)
-        .then((response) => response.arrayBuffer())
-        .then((arrayBuffer) => context.decodeAudioData(arrayBuffer))
-        .then((buffer) => {
-          let bufferId = audioBuffers.length;
+    async function loadAudio(audioUrl, requestId) {
+      try {
+        const response = await fetch(audioUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = await context.decodeAudioData(arrayBuffer);
+        let bufferId = audioBuffers.length;
 
-          // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
-          // need to use DataViews to read from the ArrayBuffer
-          audioBuffers.push(buffer);
+        // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
+        // need to use DataViews to read from the ArrayBuffer
+        audioBuffers.push(buffer);
 
-          app.ports.audioPortFromJS.send({
-            type: 1,
-            requestId: requestId,
-            bufferId: bufferId,
-            durationInSeconds: buffer.length / buffer.sampleRate,
-          });
-        })
-        .catch((error) =>
-          app.ports.audioPortFromJS.send({
-            type: 0,
-            requestId: requestId,
-            error: error.message,
-          })
-        );
+        app.ports.audioPortFromJS.send({
+          type: 1,
+          requestId: requestId,
+          bufferId: bufferId,
+          durationInSeconds: buffer.length / buffer.sampleRate,
+        });
+      } catch (error) {
+        app.ports.audioPortFromJS.send({
+          type: 0,
+          requestId: requestId,
+          // @ts-ignore
+          error: error.message,
+        });
+      }
     }
 
     /**
