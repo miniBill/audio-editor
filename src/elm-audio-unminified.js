@@ -1,24 +1,26 @@
+/**
+ * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: string; bufferId?: number; durationInSeconds?: number; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
+ */
 function startAudio(app) {
   window.AudioContext =
+    // @ts-ignore
     window.AudioContext || window.webkitAudioContext || false;
   if (window.AudioContext) {
+    /** @type {AudioBuffer[]} */
     let audioBuffers = [];
     let context = new AudioContext();
+    /** @type {{ [key: number]: { bufferId: any; nodes: {sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] } } | null }} */
     let audioPlaying = {};
-    /* https://lame.sourceforge.io/tech-FAQ.txt
-     * "All *decoders* I have tested introduce a delay of 528 samples. That
-     * is, after decoding an mp3 file, the output will have 528 samples of
-     * 0's appended to the front."
-     *
-     * Edit: Actually it seems like browsers already account for this lets set this to 0 instead.
-     */
-    let mp3MarginInSamples = 0;
 
     app.ports.audioPortFromJS.send({
       type: 2,
       samplesPerSecond: context.sampleRate,
     });
 
+    /**
+     * @param {string} audioUrl
+     * @param {number} requestId
+     */
     function loadAudio(audioUrl, requestId) {
       let request = new XMLHttpRequest();
       request.open("GET", audioUrl, true);
@@ -40,18 +42,15 @@ function startAudio(app) {
           function (buffer) {
             let bufferId = audioBuffers.length;
 
-            let isMp3 = audioUrl.endsWith(".mp3");
             // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
             // need to use DataViews to read from the ArrayBuffer
-            audioBuffers.push({ isMp3: isMp3, buffer: buffer });
+            audioBuffers.push(buffer);
 
             app.ports.audioPortFromJS.send({
               type: 1,
               requestId: requestId,
               bufferId: bufferId,
-              durationInSeconds:
-                (buffer.length - (isMp3 ? mp3MarginInSamples : 0)) /
-                buffer.sampleRate,
+              durationInSeconds: buffer.length / buffer.sampleRate,
             });
           },
           function (error) {
@@ -66,20 +65,35 @@ function startAudio(app) {
       request.send();
     }
 
+    /**
+     * @param {number} posix
+     * @param {number} currentTimePosix
+     */
     function posixToContextTime(posix, currentTimePosix) {
       return (posix - currentTimePosix) / 1000 + context.currentTime;
     }
 
-    function setLoop(sourceNode, loop, mp3MarginInSeconds) {
+    /**
+     * @param {AudioBufferSourceNode} sourceNode
+     * @param {{ loopStart: number; loopEnd: number; }} loop
+     */
+    function setLoop(sourceNode, loop) {
       if (loop) {
-        sourceNode.loopStart = mp3MarginInSeconds + loop.loopStart / 1000;
-        sourceNode.loopEnd = mp3MarginInSeconds + loop.loopEnd / 1000;
+        sourceNode.loopStart = loop.loopStart / 1000;
+        sourceNode.loopEnd = loop.loopEnd / 1000;
         sourceNode.loop = true;
       } else {
         sourceNode.loop = false;
       }
     }
 
+    /**
+     * @param {number} startAt
+     * @param {number} startValue
+     * @param {number} endAt
+     * @param {number} endValue
+     * @param {number} time
+     */
     function interpolate(startAt, startValue, endAt, endValue, time) {
       let t = (time - startAt) / (endAt - startAt);
       if (Number.isFinite(t)) {
@@ -89,6 +103,10 @@ function startAudio(app) {
       }
     }
 
+    /**
+     * @param {{ volume: number; time: number; }[][]} volumeAt
+     * @param {number} currentTime
+     */
     function createVolumeTimelineGainNodes(volumeAt, currentTime) {
       return volumeAt.map((volumeTimeline) => {
         let gainNode = context.createGain();
@@ -124,14 +142,28 @@ function startAudio(app) {
       });
     }
 
+    /**
+     * @param {AudioNode[]} nodes
+     */
     function connectNodes(nodes) {
       for (let j = 1; j < nodes.length; j++) {
         nodes[j - 1].connect(nodes[j]);
       }
     }
 
+    /**
+     * @param {AudioBuffer} buffer
+     * @param {number} volume
+     * @param {{ volume: number; time: number; }[][]} volumeTimelines
+     * @param {number} startTime
+     * @param {number} startAt
+     * @param {number} currentTime
+     * @param {{ loopEnd: number; loopStart: number; }} loop
+     * @param {number} playbackRate
+     * @returns {{ sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] }}
+     */
     function playSound(
-      audioBuffer,
+      buffer,
       volume,
       volumeTimelines,
       startTime,
@@ -140,10 +172,7 @@ function startAudio(app) {
       loop,
       playbackRate
     ) {
-      let buffer = audioBuffer.buffer;
-      let mp3MarginInSeconds = audioBuffer.isMp3
-        ? mp3MarginInSamples / context.sampleRate
-        : 0;
+      let mp3MarginInSeconds = 0;
       let source = context.createBufferSource();
 
       if (loop) {
@@ -172,7 +201,7 @@ function startAudio(app) {
       }
 
       source.playbackRate.value = playbackRate;
-      setLoop(source, loop, mp3MarginInSeconds);
+      setLoop(source, loop);
 
       let timelineGainNodes = createVolumeTimelineGainNodes(
         volumeTimelines,
@@ -210,11 +239,13 @@ function startAudio(app) {
     app.ports.audioPortToJS.subscribe((message) => {
       let currentTime = new Date().getTime();
       for (let i = 0; i < message.audio.length; i++) {
-        let audio = message.audio[i];
+        let audio =
+          /** @type {{nodeGroupId:number, action:string}} */ message.audio[i];
         switch (audio.action) {
           case "stopSound": {
             let value = audioPlaying[audio.nodeGroupId];
             audioPlaying[audio.nodeGroupId] = null;
+            if (!value) break;
             value.nodes.sourceNode.stop();
             value.nodes.sourceNode.disconnect();
             value.nodes.gainNode.disconnect();
@@ -223,11 +254,13 @@ function startAudio(app) {
           }
           case "setVolume": {
             let value = audioPlaying[audio.nodeGroupId];
+            if (!value) break;
             value.nodes.gainNode.gain.setValueAtTime(audio.volume, 0);
             break;
           }
           case "setVolumeAt": {
             let value = audioPlaying[audio.nodeGroupId];
+            if (!value) break;
             value.nodes.volumeAtGainNodes.map((node) => node.disconnect());
             value.nodes.gainNode.disconnect();
 
@@ -247,21 +280,19 @@ function startAudio(app) {
           }
           case "setLoopConfig": {
             let value = audioPlaying[audio.nodeGroupId];
-            let audioBuffer = audioBuffers[value.bufferId];
-            let mp3MarginInSeconds = audioBuffer.isMp3
-              ? mp3MarginInSamples / context.sampleRate
-              : 0;
+            if (!value) break;
 
             /* TODO: Resizing the buffer if the loopEnd value is past the end of the buffer.
-                           This might not be possible to do so the alternative is to create a new audio
-                           node (this will probably cause a popping sound and audio that is slightly out of sync).
-                         */
+              This might not be possible to do so the alternative is to create a new audio
+              node (this will probably cause a popping sound and audio that is slightly out of sync).
+            */
 
-            setLoop(value.nodes.sourceNode, audio.loop, mp3MarginInSeconds);
+            setLoop(value.nodes.sourceNode, audio.loop);
             break;
           }
           case "setPlaybackRate": {
             let value = audioPlaying[audio.nodeGroupId];
+            if (!value) break;
             value.nodes.sourceNode.playbackRate.setValueAtTime(
               audio.playbackRate,
               0

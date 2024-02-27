@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
     "outDir": "./dist/",
     "noImplicitAny": true,
     "module": "es6",
