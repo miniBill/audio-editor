@@ -1,2 +1,2 @@
-hello = Ciao mondo
-play = Play
+loaded = Caricati
+play = Riproduci {$trackName}

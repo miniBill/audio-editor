@@ -2,6 +2,7 @@ port module Main exposing (Flags, InnerModel, Model, Msg, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Dict exposing (Dict)
+import Duration exposing (Duration)
 import Element.WithContext as Element exposing (alignRight, centerX, centerY, el, fill, height, px, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
@@ -29,10 +30,16 @@ type alias Flags =
 type alias Model =
     { context : Context
     , inner : InnerModel
-    , playingFrom : Maybe Time.Posix
+    , playing : PlayingStatus
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
     }
+
+
+type PlayingStatus
+    = Stopped
+    | Playing String Time.Posix
+    | Paused String Duration
 
 
 type InnerModel
@@ -56,7 +63,7 @@ type Msg
 
 
 type TimedMsg
-    = Play
+    = Play String
 
 
 main : Program Flags (Audio.Model Msg Model) (Audio.Msg Msg)
@@ -91,18 +98,22 @@ audioPort =
 
 audio : AudioData -> Model -> Audio
 audio _ model =
-    case
-        Maybe.map2 Tuple.pair
-            (Dict.get "First.mp3" model.loadedTracks)
-            model.playingFrom
-    of
-        Nothing ->
+    case model.playing of
+        Playing name from ->
+            Dict.get name model.loadedTracks
+                |> Maybe.map
+                    (\source ->
+                        [ Audio.audio source from ]
+                            |> Audio.group
+                            |> Audio.scaleVolume model.mainVolume
+                    )
+                |> Maybe.withDefault Audio.silence
+
+        Paused _ _ ->
             Audio.silence
 
-        Just ( first, playingFrom ) ->
-            [ Audio.audio first playingFrom ]
-                |> Audio.group
-                |> Audio.scaleVolume model.mainVolume
+        Stopped ->
+            Audio.silence
 
 
 init : Flags -> ( Model, Cmd Msg, AudioCmd Msg )
@@ -123,7 +134,7 @@ init flags =
             { context = { i18n = i18n }
             , inner = Loading
             , loadedTracks = Dict.empty
-            , playingFrom = Nothing
+            , playing = Stopped
             , mainVolume = 0.5
             }
     in
@@ -190,8 +201,8 @@ update _ msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        TimedMsg Play now ->
-            pure { model | playingFrom = Just now }
+        TimedMsg (Play song) now ->
+            pure { model | playing = Playing song now }
 
         LoadedAudio (Err e) ->
             let
@@ -240,12 +251,15 @@ innerView model _ =
     column [ width fill, height fill ]
         [ menuBar
         , Theme.column [ Theme.padding ]
-            [ Theme.button []
-                { label = text Translations.play
-                , onPress = Just <| UntimedMsg Play
-                }
-            , ("Loaded" :: Dict.keys model.loadedTracks)
-                |> List.map (\t -> text <| \_ -> t)
+            [ Dict.keys model.loadedTracks
+                |> List.map
+                    (\t ->
+                        Theme.button []
+                            { label = text <| Translations.play t
+                            , onPress = Just <| UntimedMsg <| Play t
+                            }
+                    )
+                |> (::) (text Translations.loaded)
                 |> Theme.column []
             , Input.slider
                 [ height (px 30)

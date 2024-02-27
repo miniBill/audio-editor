@@ -11,6 +11,6 @@
     "start": "yarn elm-watch hot",
     "build": "yarn build:elm-audio && yarn build:translation && yarn elm-watch make",
     "build:elm-audio": "yarn uglifyjs src/elm-audio-unminified.js --compress --mangle -o src/elm-audio.js",
-    "build:translation": "rm -rf dist/i18n; yarn travelm-agency --i18n_arg_first translations --hash"
+    "build:translation": "rm -rf dist/i18n; yarn travelm-agency translations --hash"
   }
 }

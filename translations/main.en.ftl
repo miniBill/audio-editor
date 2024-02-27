@@ -1,2 +1,2 @@
-hello = Hello world
-play = Play
+loaded = Loaded
+play = Play {$trackName}
