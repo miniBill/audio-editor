@@ -1,7 +1,6 @@
 port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
-import Browser
 import Browser.Events
 import Dict exposing (Dict)
 import Duration exposing (Duration)
