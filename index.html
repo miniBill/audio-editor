@@ -10,11 +10,13 @@
   <body>
     <main></main>
     <script src="./dist/main.js"></script>
+    <script src="./src/elm-audio.js"></script>
     <script>
-      Elm.Main.init({
+      const app = Elm.Main.init({
         node: document.querySelector("main"),
         flags: { language: navigator.language },
       });
+      startAudio(app);
     </script>
   </body>
 </html>

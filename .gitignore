@@ -8,3 +8,4 @@ src/Translations.elm
 !.yarn/releases
 !.yarn/plugins
 .pnp.*
+src/elm-audio.js
