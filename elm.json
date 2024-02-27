@@ -18,7 +18,8 @@
             "elm/url": "1.0.0",
             "elmcraft/core-extra": "2.0.0",
             "ianmackenzie/elm-units": "2.10.0",
-            "miniBill/elm-ui-with-context": "1.1.0"
+            "miniBill/elm-ui-with-context": "1.1.0",
+            "myrho/elm-round": "1.0.5"
         },
         "indirect": {
             "elm/bytes": "1.0.8",

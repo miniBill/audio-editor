@@ -1,6 +1,8 @@
 port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
+import Browser
+import Browser.Events
 import Dict exposing (Dict)
 import Duration exposing (Duration)
 import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, el, fill, height, px, width)
@@ -8,10 +10,13 @@ import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
 import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
+import Element.WithContext.Lazy as Lazy
+import Float.Extra
 import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
+import Round
 import Task
 import Theme exposing (Context, Element, column, text)
 import Time
@@ -26,7 +31,9 @@ port audioPortFromJS : (Json.Decode.Value -> msg) -> Sub msg
 
 
 type alias Flags =
-    { language : String }
+    { language : String
+    , now : Int
+    }
 
 
 type alias Model =
@@ -35,6 +42,7 @@ type alias Model =
     , playing : PlayingStatus
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
+    , now : Time.Posix
     }
 
 
@@ -59,6 +67,7 @@ type Msg
     | LoadedAudio (Result Audio.LoadError ( String, Audio.Source ))
     | Volume Float
     | GotPlaylist (Result Http.Error String)
+    | Tick Time.Posix
 
 
 type TimedMsg
@@ -137,6 +146,7 @@ init flags =
             , loadedTracks = Dict.empty
             , playing = Stopped
             , mainVolume = 0.5
+            , now = Time.millisToPosix flags.now
             }
     in
     ( model
@@ -259,15 +269,18 @@ update _ msg ({ context } as model) =
         Volume volume ->
             pure { model | mainVolume = volume }
 
+        Tick now ->
+            pure { model | now = now }
+
 
 view : AudioData -> Model -> Element Msg
-view _ model =
+view audioData model =
     case model.inner of
         LoadingPlaylist ->
             el [ centerX, centerY ] <| text <| \_ -> "Loading..."
 
         LoadedPlaylist _ ->
-            innerView model
+            innerView audioData model
 
         LoadingError e ->
             column []
@@ -288,8 +301,8 @@ errorToString error =
             "Something went badly, try refreshing the page."
 
 
-innerView : Model -> Element Msg
-innerView model =
+innerView : AudioData -> Model -> Element Msg
+innerView audioData model =
     column [ width fill, height fill ]
         [ menuBar
         , Theme.column
@@ -297,7 +310,86 @@ innerView model =
             , width fill
             , height fill
             ]
-            [ Input.slider
+            [ volumeSlider model.mainVolume
+            , case model.playing of
+                Stopped ->
+                    Element.none
+
+                Playing name from ->
+                    Theme.column []
+                        [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.playing
+                            , Theme.button []
+                                { onPress = Just <| UntimedMsg Pause
+                                , label = text Translations.pause
+                                }
+                            ]
+                        , text <| \_ -> name
+                        , case Dict.get name model.loadedTracks of
+                            Nothing ->
+                                Element.none
+
+                            Just source ->
+                                text <|
+                                    \_ ->
+                                        durationToString (Duration.from from model.now)
+                                            ++ "."
+                                            ++ durationToString (Audio.length audioData source)
+                        ]
+
+                Paused name at ->
+                    Theme.column []
+                        [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.paused
+                            , Theme.button []
+                                { onPress = Just <| UntimedMsg Resume
+                                , label = text Translations.resume
+                                }
+                            ]
+                        , text <| \_ -> name
+                        , case Dict.get name model.loadedTracks of
+                            Nothing ->
+                                Element.none
+
+                            Just source ->
+                                text <|
+                                    \_ ->
+                                        durationToString at
+                                            ++ "."
+                                            ++ durationToString (Audio.length audioData source)
+                        ]
+            , playButtons model.loadedTracks
+            ]
+        ]
+
+
+playButtons : Dict String Audio.Source -> Element Msg
+playButtons =
+    Lazy.lazy <|
+        \loadedTracks ->
+            Dict.keys loadedTracks
+                |> List.map
+                    (\t ->
+                        Theme.button []
+                            { label =
+                                t
+                                    |> String.split " - "
+                                    |> List.drop 2
+                                    |> String.join " - "
+                                    |> Translations.play
+                                    |> text
+                            , onPress = Just <| UntimedMsg <| Play t
+                            }
+                    )
+                |> (::) (el [ Font.bold ] <| text Translations.loaded)
+                |> Theme.wrappedRow [ alignBottom ]
+
+
+volumeSlider : Float -> Element Msg
+volumeSlider =
+    Lazy.lazy <|
+        \mainVolume ->
+            Input.slider
                 [ height (px 30)
                 , width fill
 
@@ -320,54 +412,21 @@ innerView model =
                 , min = 0
                 , max = 1
                 , step = Nothing
-                , value = model.mainVolume
+                , value = mainVolume
                 , thumb = Input.defaultThumb
                 }
-            , case model.playing of
-                Stopped ->
-                    Element.none
 
-                Playing name _ ->
-                    Theme.column []
-                        [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.playing
-                            , Theme.button []
-                                { onPress = Just <| UntimedMsg Pause
-                                , label = text Translations.pause
-                                }
-                            ]
-                        , text <| \_ -> name
-                        ]
 
-                Paused name _ ->
-                    Theme.column []
-                        [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.paused
-                            , Theme.button []
-                                { onPress = Just <| UntimedMsg Resume
-                                , label = text Translations.resume
-                                }
-                            ]
-                        , text <| \_ -> name
-                        ]
-            , Dict.keys model.loadedTracks
-                |> List.map
-                    (\t ->
-                        Theme.button []
-                            { label =
-                                t
-                                    |> String.split " - "
-                                    |> List.drop 2
-                                    |> String.join " - "
-                                    |> Translations.play
-                                    |> text
-                            , onPress = Just <| UntimedMsg <| Play t
-                            }
-                    )
-                |> (::) (el [ Font.bold ] <| text Translations.loaded)
-                |> Theme.wrappedRow [ alignBottom ]
-            ]
-        ]
+durationToString : Duration -> String
+durationToString duration =
+    let
+        seconds =
+            Float.Extra.modBy 60 (Duration.inSeconds duration)
+
+        minutes =
+            (Duration.inSeconds duration - seconds) / 60 |> floor
+    in
+    String.fromInt minutes ++ ":" ++ Round.round 2 seconds
 
 
 menuBar : Element Msg
@@ -403,4 +462,4 @@ languagePicker =
 
 subscriptions : AudioData -> Model -> Sub Msg
 subscriptions _ _ =
-    Sub.none
+    Browser.Events.onAnimationFrame Tick

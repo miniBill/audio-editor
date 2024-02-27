@@ -58,7 +58,7 @@ function startAudio(app) {
 
     /**
      * @param {AudioBufferSourceNode} sourceNode
-     * @param {{ loopStart: number; loopEnd: number; }} loop
+     * @param {{ loopStart: number; loopEnd: number; } | null} loop
      */
     function setLoop(sourceNode, loop) {
       if (loop) {
@@ -141,7 +141,7 @@ function startAudio(app) {
      * @param {number} startTime
      * @param {number} startAt
      * @param {number} currentTime
-     * @param {{ loopEnd: number; loopStart: number; }} loop
+     * @param {{ loopEnd: number; loopStart: number; } | null} loop
      * @param {number} playbackRate
      * @returns {{ sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] }}
      */

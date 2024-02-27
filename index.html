@@ -14,7 +14,10 @@
     <script>
       const app = Elm.Main.init({
         node: document.querySelector("main"),
-        flags: { language: navigator.language },
+        flags: {
+          language: navigator.language,
+          now: new Date().getTime(),
+        },
       });
       startAudio(app);
     </script>
