@@ -15,6 +15,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
+import Quantity
 import Round
 import Task
 import Theme exposing (Context, Element, column, text, textInvariant)
@@ -167,7 +168,7 @@ init flags =
 
 
 update : AudioData -> Msg -> Model -> ( Model, Cmd Msg, AudioCmd Msg )
-update _ msg ({ context } as model) =
+update audioData msg ({ context } as model) =
     let
         updateContext : Context -> ( Model, Cmd msg, AudioCmd msg )
         updateContext newContext =
@@ -269,7 +270,54 @@ update _ msg ({ context } as model) =
             pure { model | mainVolume = volume }
 
         Tick now ->
-            pure { model | now = now }
+            pure
+                { model
+                    | now = now
+                    , playing =
+                        case model.playing of
+                            Playing name from ->
+                                case Dict.get name model.loadedTracks of
+                                    Just source ->
+                                        let
+                                            duration : Duration
+                                            duration =
+                                                Audio.length audioData source
+                                        in
+                                        if
+                                            Duration.from from now
+                                                |> Quantity.greaterThanOrEqualTo duration
+                                        then
+                                            Stopped
+
+                                        else
+                                            model.playing
+
+                                    _ ->
+                                        model.playing
+
+                            Paused name at ->
+                                case Dict.get name model.loadedTracks of
+                                    Just source ->
+                                        let
+                                            duration : Duration
+                                            duration =
+                                                Audio.length audioData source
+                                        in
+                                        if
+                                            at
+                                                |> Quantity.greaterThanOrEqualTo duration
+                                        then
+                                            Stopped
+
+                                        else
+                                            model.playing
+
+                                    _ ->
+                                        model.playing
+
+                            _ ->
+                                model.playing
+                }
 
 
 view : AudioData -> Model -> Element Msg
