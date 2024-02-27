@@ -270,54 +270,39 @@ update audioData msg ({ context } as model) =
             pure { model | mainVolume = volume }
 
         Tick now ->
-            pure
-                { model
-                    | now = now
-                    , playing =
-                        case model.playing of
-                            Playing name from ->
-                                case Dict.get name model.loadedTracks of
-                                    Just source ->
-                                        let
-                                            duration : Duration
-                                            duration =
-                                                Audio.length audioData source
-                                        in
-                                        if
-                                            Duration.from from now
-                                                |> Quantity.greaterThanOrEqualTo duration
-                                        then
-                                            Stopped
+            { model | now = now }
+                |> stopOnSongEnd audioData
+                |> pure
 
-                                        else
-                                            model.playing
 
-                                    _ ->
-                                        model.playing
+stopOnSongEnd : AudioData -> Model -> Model
+stopOnSongEnd audioData model =
+    case model.playing of
+        Playing name from ->
+            case Dict.get name model.loadedTracks of
+                Just source ->
+                    let
+                        duration : Duration
+                        duration =
+                            Audio.length audioData source
+                    in
+                    if
+                        Duration.from from model.now
+                            |> Quantity.greaterThanOrEqualTo duration
+                    then
+                        { model | playing = Stopped }
 
-                            Paused name at ->
-                                case Dict.get name model.loadedTracks of
-                                    Just source ->
-                                        let
-                                            duration : Duration
-                                            duration =
-                                                Audio.length audioData source
-                                        in
-                                        if
-                                            at
-                                                |> Quantity.greaterThanOrEqualTo duration
-                                        then
-                                            Stopped
+                    else
+                        model
 
-                                        else
-                                            model.playing
+                _ ->
+                    model
 
-                                    _ ->
-                                        model.playing
+        Paused _ _ ->
+            model
 
-                            _ ->
-                                model.playing
-                }
+        Stopped ->
+            model
 
 
 view : AudioData -> Model -> Element Msg
