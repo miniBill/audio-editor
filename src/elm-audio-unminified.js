@@ -22,47 +22,30 @@ function startAudio(app) {
      * @param {number} requestId
      */
     function loadAudio(audioUrl, requestId) {
-      let request = new XMLHttpRequest();
-      request.open("GET", audioUrl, true);
+      fetch(audioUrl)
+        .then((response) => response.arrayBuffer())
+        .then((arrayBuffer) => context.decodeAudioData(arrayBuffer))
+        .then((buffer) => {
+          let bufferId = audioBuffers.length;
 
-      request.responseType = "arraybuffer";
+          // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
+          // need to use DataViews to read from the ArrayBuffer
+          audioBuffers.push(buffer);
 
-      request.onerror = function () {
-        app.ports.audioPortFromJS.send({
-          type: 0,
-          requestId: requestId,
-          error: "NetworkError",
-        });
-      };
-
-      // Decode asynchronously
-      request.onload = function () {
-        context.decodeAudioData(
-          request.response,
-          function (buffer) {
-            let bufferId = audioBuffers.length;
-
-            // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
-            // need to use DataViews to read from the ArrayBuffer
-            audioBuffers.push(buffer);
-
-            app.ports.audioPortFromJS.send({
-              type: 1,
-              requestId: requestId,
-              bufferId: bufferId,
-              durationInSeconds: buffer.length / buffer.sampleRate,
-            });
-          },
-          function (error) {
-            app.ports.audioPortFromJS.send({
-              type: 0,
-              requestId: requestId,
-              error: error.message,
-            });
-          }
+          app.ports.audioPortFromJS.send({
+            type: 1,
+            requestId: requestId,
+            bufferId: bufferId,
+            durationInSeconds: buffer.length / buffer.sampleRate,
+          });
+        })
+        .catch((error) =>
+          app.ports.audioPortFromJS.send({
+            type: 0,
+            requestId: requestId,
+            error: error.message,
+          })
         );
-      };
-      request.send();
     }
 
     /**
