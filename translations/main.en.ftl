@@ -4,3 +4,4 @@ playing = Playing
 pause = Pause
 paused = Paused
 resume = Resume
+mainVolume = Main volume

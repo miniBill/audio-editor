@@ -1,4 +1,4 @@
-module Theme exposing (Attribute, Context, Element, button, colors, column, darken, fontSizes, grid, onCtrlEnter, onEnter, padding, row, sizes, spacing, text, wrappedRow)
+module Theme exposing (Attribute, Context, Element, button, colors, column, darken, fontSizes, grid, onCtrlEnter, onEnter, padding, row, sizes, spacing, text, textInvariant, wrappedRow)
 
 import Color
 import Element.WithContext as Element exposing (Color, el, none, rgb, rgba, shrink)
@@ -184,3 +184,8 @@ button attrs =
 text : (Translations.I18n -> String) -> Element msg
 text f =
     Element.with (\{ i18n } -> f i18n) Element.text
+
+
+textInvariant : String -> Element msg
+textInvariant =
+    Element.text

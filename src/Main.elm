@@ -17,7 +17,7 @@ import Json.Encode
 import List.Extra
 import Round
 import Task
-import Theme exposing (Context, Element, column, text)
+import Theme exposing (Context, Element, column, text, textInvariant)
 import Time
 import Translations
 import Url.Builder
@@ -276,14 +276,14 @@ view : AudioData -> Model -> Element Msg
 view audioData model =
     case model.inner of
         LoadingPlaylist ->
-            el [ centerX, centerY ] <| text <| \_ -> "Loading..."
+            el [ centerX, centerY ] <| textInvariant "Loading..."
 
         LoadedPlaylist _ ->
             innerView audioData model
 
         LoadingError e ->
             column []
-                [ text <| \_ -> errorToString e
+                [ textInvariant <| errorToString e
                 ]
 
 
@@ -323,16 +323,16 @@ innerView audioData model =
                                 , label = text Translations.pause
                                 }
                             ]
-                        , text <| \_ -> name
+                        , textInvariant name
                         , case Dict.get name model.loadedTracks of
                             Nothing ->
                                 Element.none
 
                             Just source ->
-                                text <|
-                                    \_ ->
+                                el [ Font.family [ Font.monospace ] ] <|
+                                    textInvariant <|
                                         durationToString (Duration.from from model.now)
-                                            ++ "."
+                                            ++ " / "
                                             ++ durationToString (Audio.length audioData source)
                         ]
 
@@ -345,17 +345,16 @@ innerView audioData model =
                                 , label = text Translations.resume
                                 }
                             ]
-                        , text <| \_ -> name
+                        , textInvariant name
                         , case Dict.get name model.loadedTracks of
                             Nothing ->
                                 Element.none
 
                             Just source ->
-                                text <|
-                                    \_ ->
-                                        durationToString at
-                                            ++ "."
-                                            ++ durationToString (Audio.length audioData source)
+                                textInvariant <|
+                                    durationToString at
+                                        ++ "."
+                                        ++ durationToString (Audio.length audioData source)
                         ]
             , playButtons model.loadedTracks
             ]
@@ -405,9 +404,7 @@ volumeSlider =
                     )
                 ]
                 { onChange = Volume
-                , label =
-                    Input.labelAbove [ Font.bold ]
-                        (text <| \_ -> "Main volume")
+                , label = Input.labelAbove [ Font.bold ] (text Translations.mainVolume)
                 , min = 0
                 , max = 1
                 , step = Nothing
@@ -427,7 +424,7 @@ durationToString duration =
         minutes =
             (Duration.inSeconds duration - seconds) / 60 |> floor
     in
-    String.fromInt minutes ++ ":" ++ Round.round 2 seconds
+    String.padLeft 2 '0' (String.fromInt minutes) ++ ":" ++ String.padLeft 5 '0' (Round.round 2 seconds)
 
 
 menuBar : Element Msg
@@ -451,7 +448,7 @@ languagePicker =
 
                 languageToOption : Translations.Language -> Input.Option { i18n : Translations.I18n } Translations.Language Msg
                 languageToOption language =
-                    Input.option language <| text <| \_ -> Translations.languageToString language
+                    Input.option language <| textInvariant <| Translations.languageToString language
             in
             Input.radioRow [ Theme.spacing ]
                 { label = Input.labelHidden "Language"
