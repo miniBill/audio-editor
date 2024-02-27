@@ -1,4 +1,4 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, main)
+port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Dict exposing (Dict)
@@ -10,6 +10,7 @@ import Element.WithContext.Input as Input
 import Http
 import Json.Decode
 import Json.Encode
+import List.Extra
 import Task
 import Theme exposing (Context, Element, column, text)
 import Time
@@ -43,13 +44,9 @@ type PlayingStatus
 
 
 type InnerModel
-    = Loading
-    | Loaded LoadedModel
+    = LoadingPlaylist
+    | LoadedPlaylist (List String)
     | LoadingError Http.Error
-
-
-type alias LoadedModel =
-    {}
 
 
 type Msg
@@ -60,6 +57,7 @@ type Msg
     | SwitchedLanguage (Result Http.Error (Translations.I18n -> Translations.I18n))
     | LoadedAudio (Result Audio.LoadError ( String, Audio.Source ))
     | Volume Float
+    | GotPlaylist (Result Http.Error String)
 
 
 type TimedMsg
@@ -132,28 +130,27 @@ init flags =
         model : Model
         model =
             { context = { i18n = i18n }
-            , inner = Loading
+            , inner = LoadingPlaylist
             , loadedTracks = Dict.empty
             , playing = Stopped
             , mainVolume = 0.5
             }
     in
     ( model
-    , Translations.loadMain
-        (\result ->
-            result
-                |> Result.map (\f -> f i18n)
-                |> LoadedTranslation
-        )
-        i18n
-    , [ "Calm.mp3", "First.mp3" ]
-        |> List.map
-            (\name ->
-                Url.Builder.absolute [ "public", name ] []
-                    |> Audio.loadAudio
-                        (\result -> LoadedAudio <| Result.map (\source -> ( name, source )) result)
+    , Cmd.batch
+        [ Translations.loadMain
+            (\result ->
+                result
+                    |> Result.map (\f -> f i18n)
+                    |> LoadedTranslation
             )
-        |> Audio.cmdBatch
+            i18n
+        , Http.get
+            { url = "/public/playlist.txt"
+            , expect = Http.expectString GotPlaylist
+            }
+        ]
+    , Audio.cmdNone
     )
 
 
@@ -169,15 +166,33 @@ update _ msg ({ context } as model) =
             ( x, Cmd.none, Audio.cmdNone )
     in
     case msg of
-        LoadedTranslation (Err e) ->
-            pure { model | inner = LoadingError e }
+        LoadedTranslation (Err _) ->
+            pure model
 
         LoadedTranslation (Ok i18n) ->
-            pure
-                { model
-                    | context = { context | i18n = i18n }
-                    , inner = Loaded {}
-                }
+            updateContext { context | i18n = i18n }
+
+        GotPlaylist (Err e) ->
+            pure { model | inner = LoadingError e }
+
+        GotPlaylist (Ok playlist) ->
+            let
+                tracks : List String
+                tracks =
+                    String.split "\n" playlist
+                        |> List.Extra.removeWhen String.isEmpty
+            in
+            ( { model | inner = LoadedPlaylist tracks }
+            , Cmd.none
+            , tracks
+                |> List.map
+                    (\name ->
+                        Url.Builder.absolute [ "public", name ] []
+                            |> Audio.loadAudio
+                                (\result -> LoadedAudio <| Result.map (\source -> ( name, source )) result)
+                    )
+                |> Audio.cmdBatch
+            )
 
         SwitchedLanguage (Err _) ->
             pure model
@@ -221,11 +236,11 @@ update _ msg ({ context } as model) =
 view : AudioData -> Model -> Element Msg
 view _ model =
     case model.inner of
-        Loading ->
+        LoadingPlaylist ->
             el [ centerX, centerY ] <| text <| \_ -> "Loading..."
 
-        Loaded loadedModel ->
-            innerView model loadedModel
+        LoadedPlaylist _ ->
+            innerView model
 
         LoadingError e ->
             column []
@@ -246,21 +261,36 @@ errorToString error =
             "Something went badly, try refreshing the page."
 
 
-innerView : Model -> LoadedModel -> Element Msg
-innerView model _ =
+innerView : Model -> Element Msg
+innerView model =
     column [ width fill, height fill ]
         [ menuBar
-        , Theme.column [ Theme.padding ]
+        , Theme.column [ Theme.padding, width fill ]
             [ Dict.keys model.loadedTracks
                 |> List.map
                     (\t ->
                         Theme.button []
-                            { label = text <| Translations.play t
+                            { label =
+                                t
+                                    |> String.split " - "
+                                    |> List.drop 2
+                                    |> String.join " - "
+                                    |> Translations.play
+                                    |> text
                             , onPress = Just <| UntimedMsg <| Play t
                             }
                     )
                 |> (::) (text Translations.loaded)
-                |> Theme.column []
+                |> Theme.wrappedRow []
+            , case model.playing of
+                Stopped ->
+                    Element.none
+
+                Playing name _ ->
+                    text <| Translations.playing name
+
+                Paused name _ ->
+                    text Translations.paused
             , Input.slider
                 [ height (px 30)
                 , width fill

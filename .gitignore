@@ -2,10 +2,5 @@ dist
 node_modules
 elm-stuff
 src/Translations.elm
-
-# Ignore Yarn caches
-.yarn/*
-!.yarn/releases
-!.yarn/plugins
-.pnp.*
 src/elm-audio.js
+public/

@@ -1,2 +1,2 @@
-loaded = Caricati
+# fallback-language: en
 play = Riproduci {$trackName}
