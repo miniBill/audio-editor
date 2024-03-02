@@ -1,12 +1,9 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Point, RawData, main)
+port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
-import Bytes.Encode
 import Dict exposing (Dict)
 import Duration exposing (Duration)
-import Effect.WebGL as WebGL exposing (Mesh, Shader)
-import Effect.WebGL.Texture as Texture exposing (Texture)
 import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, px, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
@@ -15,19 +12,19 @@ import Element.WithContext.Input as Input
 import Element.WithContext.Lazy as Lazy
 import Float.Extra
 import Html exposing (Html)
-import Html.Attributes
 import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
-import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Round
 import Task
 import Theme exposing (Context, Element, text, textInvariant)
 import Time
 import Translations
+import Types exposing (RawData)
 import Url.Builder
+import View.Waveform
 
 
 port audioPortToJS : Json.Encode.Value -> Cmd msg
@@ -44,7 +41,7 @@ port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
 
 sampleCount : number
 sampleCount =
-    512
+    1024
 
 
 type alias Flags =
@@ -65,14 +62,6 @@ type alias Model =
     , rawData : Dict String RawData
     , sampleRate : Int
     }
-
-
-type alias RawData =
-    List (List Point)
-
-
-type alias Point =
-    ( Float, Float, Float )
 
 
 type PlayingStatus
@@ -442,10 +431,10 @@ errorToString error =
 innerView : AudioData -> Model -> Element Msg
 innerView audioData model =
     let
+        length : String -> Maybe Duration
         length name =
             Dict.get name model.loadedTracks
-                |> Maybe.map
-                    (Audio.length audioData)
+                |> Maybe.map (Audio.length audioData)
     in
     column [ width fill, height fill ]
         [ menuBar
@@ -502,142 +491,10 @@ innerView audioData model =
         ]
 
 
-type alias Vertex =
-    { a_position : Vec2 }
-
-
-type alias Uniforms =
-    { u_channel : Texture
-    , u_at : Float
-    }
-
-
-type alias Varyings =
-    { v_position : Vec2
-    }
-
-
 viewWaveform : Duration -> Maybe Duration -> RawData -> Element msg
-viewWaveform at length channels =
-    let
-        fullHeight : number
-        fullHeight =
-            120
-
-        tl : Vertex
-        tl =
-            Vertex (vec2 -1 1)
-
-        tr : Vertex
-        tr =
-            Vertex (vec2 1 1)
-
-        bl : Vertex
-        bl =
-            Vertex (vec2 -1 -1)
-
-        br : Vertex
-        br =
-            Vertex (vec2 1 -1)
-
-        mesh : Mesh Vertex
-        mesh =
-            WebGL.triangles [ ( tl, tr, bl ), ( tr, br, bl ) ]
-
-        texture : List Point -> Texture
-        texture channel =
-            Texture.loadBytesWith
-                { magnify = Texture.linear
-                , minify = Texture.linear
-                , horizontalWrap = Texture.clampToEdge
-                , verticalWrap = Texture.clampToEdge
-                , flipY = False
-                , premultiplyAlpha = False
-                }
-                ( sampleCount, 1 )
-                Texture.rgb
-                (Bytes.Encode.encode <|
-                    Bytes.Encode.sequence <|
-                        List.map Bytes.Encode.unsignedInt8 <|
-                            List.concatMap
-                                (\( min, rms, max ) ->
-                                    [ round <| 255 * -min
-                                    , round <| 255 * rms
-                                    , round <| 255 * max
-                                    ]
-                                )
-                                channel
-                )
-                |> unwrapResult
-
-        unwrapResult : Result e a -> a
-        unwrapResult result =
-            case result of
-                Ok o ->
-                    o
-
-                Err e ->
-                    Debug.todo (Debug.toString e)
-
-        vertexShader : Shader Vertex Uniforms Varyings
-        vertexShader =
-            [glsl|
-                attribute vec2 a_position;
-                varying vec2 v_position;
-
-                void main () {
-                    v_position = a_position;
-                    gl_Position = vec4(a_position, 0., 1.);
-                }
-            |]
-
-        fragmentShader : Shader {} Uniforms Varyings
-        fragmentShader =
-            [glsl|
-                precision mediump float;
-                varying vec2 v_position;
-                uniform sampler2D u_channel;
-                uniform float u_at;
-
-                void main () {
-                    float normalized_x = v_position.x / 2. + 0.5;
-                    vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
-                    if (abs(normalized_x - u_at) < 0.0015) {
-                        gl_FragColor = vec4(1., 0., 0., 1.);
-                    } else {
-                        if (v_position.y < -point.x || v_position.y > point.z) {
-                            gl_FragColor = vec4(0);
-                        } else if (abs(v_position.y) > point.y) {
-                            gl_FragColor = vec4(0.2, 0.2, 1., 1.);
-                        } else {
-                            gl_FragColor = vec4(0.5, 0.5, 1., 1.);
-                        }
-                    }
-                }
-            |]
-
-        webgl : List Point -> Element msg
-        webgl channel =
-            [ WebGL.entity vertexShader
-                fragmentShader
-                mesh
-                { u_channel = texture channel
-                , u_at =
-                    length
-                        |> Maybe.map (\l -> Quantity.ratio at l)
-                        |> Maybe.withDefault -1
-                }
-            ]
-                |> WebGL.toHtml
-                    [ Html.Attributes.width sampleCount
-                    , Html.Attributes.style "width" "100%"
-                    , Html.Attributes.height fullHeight
-                    , Html.Attributes.style "display" "block"
-                    ]
-                |> Element.html
-                |> el [ width fill ]
-    in
-    List.map webgl channels
+viewWaveform length at channels =
+    View.Waveform.view length at channels
+        |> List.map (Element.html >> el [])
         |> Theme.column []
 
 
