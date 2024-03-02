@@ -4,7 +4,7 @@ import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
 import Dict exposing (Dict)
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, el, fill, height, px, width)
+import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, el, fill, height, px, rgb, row, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
 import Element.WithContext.Font as Font
@@ -34,7 +34,7 @@ port audioPortFromJS : (Json.Decode.Value -> msg) -> Sub msg
 port getRawAudioData : String -> Cmd msg
 
 
-port gotRawAudioData : ({ name : String, data : List Int } -> msg) -> Sub msg
+port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
 
 
 type alias Flags =
@@ -52,7 +52,7 @@ type alias Model =
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
     , now : Time.Posix
-    , rawData : Dict String (List Int)
+    , rawData : Dict String (List (List Float))
     , sampleRate : Int
     }
 
@@ -79,7 +79,7 @@ type Msg
     | Volume Float
     | GotPlaylist (Result Http.Error String)
     | Tick Time.Posix
-    | GotRawAudioData { name : String, data : List Int }
+    | GotRawAudioData Json.Decode.Value
 
 
 type TimedMsg
@@ -249,13 +249,11 @@ update audioData msg ({ context } as model) =
                         |> List.Extra.removeWhen String.isEmpty
             in
             ( { model | inner = LoadedPlaylist tracks }
-            , tracks
-                |> List.map getRawAudioData
-                |> Cmd.batch
+            , Cmd.none
             , tracks
                 |> List.map
                     (\name ->
-                        Url.Builder.absolute [ "public", name ] []
+                        songNameToUrl name
                             |> Audio.loadAudio
                                 (\result -> LoadedAudio <| Result.map (\source -> ( name, source )) result)
                     )
@@ -285,7 +283,10 @@ update audioData msg ({ context } as model) =
             )
 
         TimedMsg (Play song) now ->
-            pure { model | playing = Playing song now }
+            ( { model | playing = Playing song now }
+            , getRawAudioData <| songNameToUrl song
+            , Audio.cmdNone
+            )
 
         TimedMsg Pause now ->
             pure
@@ -329,8 +330,33 @@ update audioData msg ({ context } as model) =
                 |> stopOnSongEnd audioData
                 |> pure
 
-        GotRawAudioData { name, data } ->
-            pure { model | rawData = Dict.insert name data model.rawData }
+        GotRawAudioData value ->
+            let
+                decoder : Json.Decode.Decoder { url : String, data : List (List Float) }
+                decoder =
+                    Json.Decode.map2
+                        (\url data -> { url = url, data = data })
+                        (Json.Decode.field "url" Json.Decode.string)
+                        (Json.Decode.field "data" <|
+                            Json.Decode.list <|
+                                Json.Decode.list Json.Decode.float
+                        )
+            in
+            case Json.Decode.decodeValue decoder value of
+                Err e ->
+                    let
+                        _ =
+                            Debug.log "Error loading raw data" e
+                    in
+                    pure model
+
+                Ok { url, data } ->
+                    pure { model | rawData = Dict.insert url data model.rawData }
+
+
+songNameToUrl : String -> String
+songNameToUrl name =
+    Url.Builder.absolute [ "public", name ] []
 
 
 stopOnSongEnd : AudioData -> Model -> Model
@@ -417,6 +443,12 @@ innerView audioData model =
                         , textInvariant name
                         , timeTracker audioData model name <|
                             Duration.from from model.now
+                        , case Dict.get (songNameToUrl name) model.rawData of
+                            Nothing ->
+                                text Translations.loadingWaveform
+
+                            Just raw ->
+                                viewWaveform raw
                         ]
 
                 Paused name at ->
@@ -434,6 +466,29 @@ innerView audioData model =
             , playButtons model.loadedTracks
             ]
         ]
+
+
+viewWaveform : List (List Float) -> Element msg
+viewWaveform channels =
+    let
+        viewPoint : Float -> Element msg
+        viewPoint point =
+            el
+                [ width fill
+                , height <| px <| round <| 40 * point
+                , Background.color <| rgb 0 0 0
+                ]
+                Element.none
+
+        viewChannel : List Float -> Element msg
+        viewChannel channel =
+            channel
+                |> List.map viewPoint
+                |> row [ height <| px 40, width fill ]
+    in
+    channels
+        |> List.map viewChannel
+        |> Theme.column [ width fill ]
 
 
 timeTracker : AudioData -> Model -> String -> Duration -> Element msg

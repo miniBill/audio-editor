@@ -1,11 +1,12 @@
 /**
- * @param {{ ports: { audioPortFromJS: { send: (arg: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; audioPortToJS: { subscribe: (arg: (message: any) => void) => void; }; }; }} app
+ * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; getRawAudioData: { subscribe: (arg0: (url: string) => void) => void; }; gotRawAudioData: { send: (arg0: { url: string; data: number[][]; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
  */
 function startAudio(app) {
     window.AudioContext =
+        // @ts-ignore
         window.AudioContext || window.webkitAudioContext || false;
     if (window.AudioContext) {
-        /** @type {AudioBuffer[]} */
+        /** @type {{ buffer: AudioBuffer; url: string }[]} */
         let audioBuffers = [];
         let context = new AudioContext();
         /** @type {{ [key: number]: { bufferId: any; nodes: {sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] } } }} */
@@ -37,7 +38,7 @@ function startAudio(app) {
                 const buffer = await context.decodeAudioData(responseBuffer);
 
                 let bufferId = audioBuffers.length;
-                audioBuffers.push(buffer);
+                audioBuffers.push({ buffer: buffer, url: audio.audioUrl });
 
                 app.ports.audioPortFromJS.send({
                     type: 1,
@@ -49,6 +50,7 @@ function startAudio(app) {
                 app.ports.audioPortFromJS.send({
                     type: 0,
                     requestId: audio.requestId,
+                    // @ts-ignore
                     error: error.message,
                 });
             }
@@ -241,6 +243,44 @@ function startAudio(app) {
             };
         }
 
+        app.ports.getRawAudioData.subscribe(async (url) => {
+            for (let i = 0; i < audioBuffers.length; i++) {
+                let audioBuffer = audioBuffers[i];
+                if (audioBuffer.url != url) continue;
+
+                const buffer = audioBuffer.buffer;
+                let normalizedData = [];
+                for (
+                    let channel = 0;
+                    channel < buffer.numberOfChannels;
+                    channel++
+                ) {
+                    const rawData = buffer.getChannelData(channel);
+                    const samples = 70; // Number of samples we want to have in our final data set
+                    const blockSize = Math.floor(rawData.length / samples); // the number of samples in each subdivision
+                    const filteredData = [];
+                    for (let i = 0; i < samples; i++) {
+                        let blockStart = blockSize * i; // the location of the first sample in the block
+                        let sum = 0;
+                        for (let j = 0; j < blockSize; j++) {
+                            sum = sum + Math.abs(rawData[blockStart + j]); // find the sum of all the samples in the block
+                        }
+                        filteredData.push(sum / blockSize); // divide the sum by the block size to get the average
+                    }
+
+                    const multiplier = Math.pow(Math.max(...filteredData), -1);
+                    normalizedData.push(
+                        filteredData.map((n) => n * multiplier)
+                    );
+                }
+
+                app.ports.gotRawAudioData.send({
+                    url: url,
+                    data: normalizedData,
+                });
+            }
+        });
+
         app.ports.audioPortToJS.subscribe(async (message) => {
             let currentTime = new Date().getTime();
             for (let i = 0; i < message.audio.length; i++) {
@@ -307,7 +347,7 @@ function startAudio(app) {
                     }
                     case "startSound": {
                         let nodes = playSound(
-                            audioBuffers[audio.bufferId],
+                            audioBuffers[audio.bufferId].buffer,
                             audio.volume,
                             audio.volumeTimelines,
                             audio.startTime,
