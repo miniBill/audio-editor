@@ -1,15 +1,14 @@
 /**
- * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: string; bufferId?: number; durationInSeconds?: number; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
+ * @param {{ ports: { audioPortFromJS: { send: (arg: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; audioPortToJS: { subscribe: (arg: (message: any) => void) => void; }; }; }} app
  */
 function startAudio(app) {
-    // @ts-ignore
     window.AudioContext =
         window.AudioContext || window.webkitAudioContext || false;
     if (window.AudioContext) {
         /** @type {AudioBuffer[]} */
         let audioBuffers = [];
         let context = new AudioContext();
-        /** @type {{ [key: number]: { bufferId: any; nodes: {sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] } } | null }} */
+        /** @type {{ [key: number]: { bufferId: any; nodes: {sourceNode: AudioBufferSourceNode; gainNode: GainNode; volumeAtGainNodes: GainNode[] } } }} */
         let audioPlaying = {};
 
         app.ports.audioPortFromJS.send({
@@ -18,31 +17,38 @@ function startAudio(app) {
         });
 
         /**
-         * @param {string} audioUrl
-         * @param {number} requestId
+         * @param {{ audioUrl: string; requestId: number }} audio
          */
-        async function loadAudio(audioUrl, requestId) {
+        async function loadAudio(audio) {
+            let responseBuffer;
             try {
-                const response = await fetch(audioUrl);
-                const arrayBuffer = await response.arrayBuffer();
-                const buffer = await context.decodeAudioData(arrayBuffer);
-                let bufferId = audioBuffers.length;
+                const response = await fetch(audio.audioUrl);
+                responseBuffer = await response.arrayBuffer();
+            } catch {
+                app.ports.audioPortFromJS.send({
+                    type: 0,
+                    requestId: audio.requestId,
+                    error: "NetworkError",
+                });
+                return;
+            }
 
-                // TODO: Read the header of the ArrayBuffer before decoding to an AudioBuffer https://www.mp3-tech.org/programmer/frame_header.html
-                // need to use DataViews to read from the ArrayBuffer
+            try {
+                const buffer = await context.decodeAudioData(responseBuffer);
+
+                let bufferId = audioBuffers.length;
                 audioBuffers.push(buffer);
 
                 app.ports.audioPortFromJS.send({
                     type: 1,
-                    requestId: requestId,
+                    requestId: audio.requestId,
                     bufferId: bufferId,
                     durationInSeconds: buffer.length / buffer.sampleRate,
                 });
             } catch (error) {
                 app.ports.audioPortFromJS.send({
                     type: 0,
-                    requestId: requestId,
-                    // @ts-ignore
+                    requestId: audio.requestId,
                     error: error.message,
                 });
             }
@@ -170,7 +176,6 @@ function startAudio(app) {
             loop,
             playbackRate
         ) {
-            let mp3MarginInSeconds = 0;
             let source = context.createBufferSource();
 
             if (loop) {
@@ -221,12 +226,12 @@ function startAudio(app) {
             if (startTime >= currentTime) {
                 source.start(
                     posixToContextTime(startTime, currentTime),
-                    mp3MarginInSeconds + startAt / 1000
+                    startAt / 1000
                 );
             } else {
                 // TODO: offset should account for looping
                 let offset = (currentTime - startTime) / 1000;
-                source.start(0, offset + mp3MarginInSeconds + startAt / 1000);
+                source.start(0, offset + startAt / 1000);
             }
 
             return {
@@ -236,17 +241,14 @@ function startAudio(app) {
             };
         }
 
-        app.ports.audioPortToJS.subscribe((message) => {
+        app.ports.audioPortToJS.subscribe(async (message) => {
             let currentTime = new Date().getTime();
             for (let i = 0; i < message.audio.length; i++) {
-                let audio =
-                    /** @type {{nodeGroupId:number, action:string}} */ message
-                        .audio[i];
+                let audio = message.audio[i];
                 switch (audio.action) {
                     case "stopSound": {
                         let value = audioPlaying[audio.nodeGroupId];
-                        audioPlaying[audio.nodeGroupId] = null;
-                        if (!value) break;
+                        delete audioPlaying[audio.nodeGroupId];
                         value.nodes.sourceNode.stop();
                         value.nodes.sourceNode.disconnect();
                         value.nodes.gainNode.disconnect();
@@ -257,7 +259,6 @@ function startAudio(app) {
                     }
                     case "setVolume": {
                         let value = audioPlaying[audio.nodeGroupId];
-                        if (!value) break;
                         value.nodes.gainNode.gain.setValueAtTime(
                             audio.volume,
                             0
@@ -266,7 +267,6 @@ function startAudio(app) {
                     }
                     case "setVolumeAt": {
                         let value = audioPlaying[audio.nodeGroupId];
-                        if (!value) break;
                         value.nodes.volumeAtGainNodes.map((node) =>
                             node.disconnect()
                         );
@@ -288,7 +288,6 @@ function startAudio(app) {
                     }
                     case "setLoopConfig": {
                         let value = audioPlaying[audio.nodeGroupId];
-                        if (!value) break;
 
                         /* TODO: Resizing the buffer if the loopEnd value is past the end of the buffer.
                         This might not be possible to do so the alternative is to create a new audio
@@ -300,7 +299,6 @@ function startAudio(app) {
                     }
                     case "setPlaybackRate": {
                         let value = audioPlaying[audio.nodeGroupId];
-                        if (!value) break;
                         value.nodes.sourceNode.playbackRate.setValueAtTime(
                             audio.playbackRate,
                             0
@@ -327,12 +325,8 @@ function startAudio(app) {
                 }
             }
 
-            for (let i = 0; i < message.audioCmds.length; i++) {
-                loadAudio(
-                    message.audioCmds[i].audioUrl,
-                    message.audioCmds[i].requestId
-                );
-            }
+            const loads = message.audioCmds.map(loadAudio);
+            await Promise.all(loads);
         });
     } else {
         console.log("Web audio is not supported in your browser.");
