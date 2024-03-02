@@ -38,23 +38,23 @@ fontSizes =
 sizes :
     { borderWidth : number1
     , roundness : number2
-    , rythm : number3
+    , rhythm : number3
     }
 sizes =
     { borderWidth = 1
     , roundness = 3
-    , rythm = 10
+    , rhythm = 10
     }
 
 
 spacing : Attribute msg
 spacing =
-    Element.spacing sizes.rythm
+    Element.spacing sizes.rhythm
 
 
 padding : Attribute msg
 padding =
-    Element.padding sizes.rythm
+    Element.padding sizes.rhythm
 
 
 colors :

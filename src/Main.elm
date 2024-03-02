@@ -292,8 +292,13 @@ update audioData msg ({ context } as model) =
             )
 
         TimedMsg (Play song) now ->
-            ( { model | playing = Playing song now }
-            , getRawAudioData { url = songNameToUrl song, samples = model.width }
+            let
+                newModel : Model
+                newModel =
+                    { model | playing = Playing song now }
+            in
+            ( newModel
+            , getRawAudioDataIfPlaying newModel
             , Audio.cmdNone
             )
 
@@ -367,18 +372,28 @@ update audioData msg ({ context } as model) =
                     pure { model | rawData = Dict.insert url data model.rawData }
 
         Resize width height ->
-            ( { model | width = width, height = height }
-            , case model.playing of
-                Playing song _ ->
-                    getRawAudioData { url = songNameToUrl song, samples = width }
-
-                Paused song _ ->
-                    getRawAudioData { url = songNameToUrl song, samples = width }
-
-                Stopped ->
-                    Cmd.none
+            let
+                newModel : Model
+                newModel =
+                    { model | width = width, height = height }
+            in
+            ( newModel
+            , getRawAudioDataIfPlaying newModel
             , Audio.cmdNone
             )
+
+
+getRawAudioDataIfPlaying : Model -> Cmd Msg
+getRawAudioDataIfPlaying model =
+    case model.playing of
+        Playing song _ ->
+            getRawAudioData { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
+
+        Paused song _ ->
+            getRawAudioData { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
+
+        Stopped ->
+            Cmd.none
 
 
 songNameToUrl : String -> String
