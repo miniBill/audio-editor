@@ -11,6 +11,7 @@ import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
 import Element.WithContext.Lazy as Lazy
 import Float.Extra
+import Html exposing (Html)
 import Http
 import Json.Decode
 import Json.Encode
@@ -30,9 +31,17 @@ port audioPortToJS : Json.Encode.Value -> Cmd msg
 port audioPortFromJS : (Json.Decode.Value -> msg) -> Sub msg
 
 
+port getRawAudioData : String -> Cmd msg
+
+
+port gotRawAudioData : ({ name : String, data : List Int } -> msg) -> Sub msg
+
+
 type alias Flags =
     { language : String
     , now : Int
+    , hasAudio : Bool
+    , sampleRate : Int
     }
 
 
@@ -43,6 +52,8 @@ type alias Model =
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
     , now : Time.Posix
+    , rawData : Dict String (List Int)
+    , sampleRate : Int
     }
 
 
@@ -68,6 +79,7 @@ type Msg
     | Volume Float
     | GotPlaylist (Result Http.Error String)
     | Tick Time.Posix
+    | GotRawAudioData { name : String, data : List Int }
 
 
 type TimedMsg
@@ -76,24 +88,58 @@ type TimedMsg
     | Resume
 
 
-main : Program Flags (Audio.Model Msg Model) (Audio.Msg Msg)
+main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
 main =
     Audio.elementWithAudio
         { init = init
-        , view =
-            \audioData model ->
-                Element.layout model.context
-                    [ Theme.fontSizes.normal
-                    , Background.color Theme.colors.background
-                    , width fill
-                    , height fill
-                    ]
-                    (view audioData model)
-        , update = update
-        , subscriptions = subscriptions
-        , audio = audio
+        , view = maybe noAudioError outerView
+        , update =
+            \audioData msg maybeModel ->
+                case maybeModel of
+                    Nothing ->
+                        ( maybeModel, Cmd.none, Audio.cmdNone )
+
+                    Just model ->
+                        let
+                            ( newModel, cmd, audioCmd ) =
+                                update audioData msg model
+                        in
+                        ( Just newModel, cmd, audioCmd )
+        , subscriptions = maybe Sub.none subscriptions
+        , audio = maybe Audio.silence audio
         , audioPort = audioPort
         }
+
+
+noAudioError : Html Msg
+noAudioError =
+    Element.layout {}
+        [ centerX
+        , centerY
+        , Font.size 30
+        ]
+        (Element.text "Audio not supported")
+
+
+outerView : AudioData -> Model -> Html Msg
+outerView audioData model =
+    Element.layout model.context
+        [ Theme.fontSizes.normal
+        , Background.color Theme.colors.background
+        , width fill
+        , height fill
+        ]
+        (view audioData model)
+
+
+maybe : result -> (AudioData -> Model -> result) -> AudioData -> Maybe Model -> result
+maybe default f audioData maybeModel =
+    case maybeModel of
+        Nothing ->
+            default
+
+        Just model ->
+            f audioData model
 
 
 audioPort :
@@ -126,7 +172,7 @@ audio _ model =
             Audio.silence
 
 
-init : Flags -> ( Model, Cmd Msg, AudioCmd Msg )
+init : Flags -> ( Maybe Model, Cmd Msg, AudioCmd Msg )
 init flags =
     let
         i18n : Translations.I18n
@@ -139,15 +185,22 @@ init flags =
                 , path = "/dist/i18n"
                 }
 
-        model : Model
+        model : Maybe Model
         model =
-            { context = { i18n = i18n }
-            , inner = LoadingPlaylist
-            , loadedTracks = Dict.empty
-            , playing = Stopped
-            , mainVolume = 0.5
-            , now = Time.millisToPosix flags.now
-            }
+            if flags.hasAudio then
+                { context = { i18n = i18n }
+                , inner = LoadingPlaylist
+                , loadedTracks = Dict.empty
+                , playing = Stopped
+                , mainVolume = 0.5
+                , now = Time.millisToPosix flags.now
+                , rawData = Dict.empty
+                , sampleRate = flags.sampleRate
+                }
+                    |> Just
+
+            else
+                Nothing
     in
     ( model
     , Cmd.batch
@@ -196,7 +249,9 @@ update audioData msg ({ context } as model) =
                         |> List.Extra.removeWhen String.isEmpty
             in
             ( { model | inner = LoadedPlaylist tracks }
-            , Cmd.none
+            , tracks
+                |> List.map getRawAudioData
+                |> Cmd.batch
             , tracks
                 |> List.map
                     (\name ->
@@ -273,6 +328,9 @@ update audioData msg ({ context } as model) =
             { model | now = now }
                 |> stopOnSongEnd audioData
                 |> pure
+
+        GotRawAudioData { name, data } ->
+            pure { model | rawData = Dict.insert name data model.rawData }
 
 
 stopOnSongEnd : AudioData -> Model -> Model
@@ -491,4 +549,7 @@ languagePicker =
 
 subscriptions : AudioData -> Model -> Sub Msg
 subscriptions _ _ =
-    Browser.Events.onAnimationFrame Tick
+    Sub.batch
+        [ gotRawAudioData GotRawAudioData
+        , Browser.Events.onAnimationFrame Tick
+        ]
