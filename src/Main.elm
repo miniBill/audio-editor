@@ -1,10 +1,13 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
+port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Point, RawData, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
+import Bytes.Encode
 import Dict exposing (Dict)
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, el, fill, height, px, rgb, row, width)
+import Effect.WebGL as WebGL exposing (Mesh, Shader)
+import Effect.WebGL.Texture as Texture exposing (Texture)
+import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, px, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
 import Element.WithContext.Font as Font
@@ -12,14 +15,16 @@ import Element.WithContext.Input as Input
 import Element.WithContext.Lazy as Lazy
 import Float.Extra
 import Html exposing (Html)
+import Html.Attributes
 import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
+import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Round
 import Task
-import Theme exposing (Context, Element, column, text, textInvariant)
+import Theme exposing (Context, Element, text, textInvariant)
 import Time
 import Translations
 import Url.Builder
@@ -31,10 +36,15 @@ port audioPortToJS : Json.Encode.Value -> Cmd msg
 port audioPortFromJS : (Json.Decode.Value -> msg) -> Sub msg
 
 
-port getRawAudioData : String -> Cmd msg
+port getRawAudioData : { url : String, samples : Int } -> Cmd msg
 
 
 port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
+
+
+sampleCount : number
+sampleCount =
+    512
 
 
 type alias Flags =
@@ -52,9 +62,17 @@ type alias Model =
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
     , now : Time.Posix
-    , rawData : Dict String (List (List Float))
+    , rawData : Dict String RawData
     , sampleRate : Int
     }
+
+
+type alias RawData =
+    List (List Point)
+
+
+type alias Point =
+    ( Float, Float, Float )
 
 
 type PlayingStatus
@@ -65,7 +83,7 @@ type PlayingStatus
 
 type InnerModel
     = LoadingPlaylist
-    | LoadedPlaylist (List String)
+    | LoadedPlaylist
     | LoadingError Http.Error
 
 
@@ -248,7 +266,7 @@ update audioData msg ({ context } as model) =
                     String.split "\n" playlist
                         |> List.Extra.removeWhen String.isEmpty
             in
-            ( { model | inner = LoadedPlaylist tracks }
+            ( { model | inner = LoadedPlaylist }
             , Cmd.none
             , tracks
                 |> List.map
@@ -284,7 +302,7 @@ update audioData msg ({ context } as model) =
 
         TimedMsg (Play song) now ->
             ( { model | playing = Playing song now }
-            , getRawAudioData <| songNameToUrl song
+            , getRawAudioData { url = songNameToUrl song, samples = sampleCount }
             , Audio.cmdNone
             )
 
@@ -332,14 +350,18 @@ update audioData msg ({ context } as model) =
 
         GotRawAudioData value ->
             let
-                decoder : Json.Decode.Decoder { url : String, data : List (List Float) }
+                decoder : Json.Decode.Decoder { url : String, data : RawData }
                 decoder =
                     Json.Decode.map2
                         (\url data -> { url = url, data = data })
                         (Json.Decode.field "url" Json.Decode.string)
                         (Json.Decode.field "data" <|
                             Json.Decode.list <|
-                                Json.Decode.list Json.Decode.float
+                                Json.Decode.list <|
+                                    Json.Decode.map3 (\min rms max -> ( min, rms, max ))
+                                        (Json.Decode.field "0" Json.Decode.float)
+                                        (Json.Decode.field "1" Json.Decode.float)
+                                        (Json.Decode.field "2" Json.Decode.float)
                         )
             in
             case Json.Decode.decodeValue decoder value of
@@ -395,7 +417,7 @@ view audioData model =
         LoadingPlaylist ->
             el [ centerX, centerY ] <| textInvariant "Loading..."
 
-        LoadedPlaylist _ ->
+        LoadedPlaylist ->
             innerView audioData model
 
         LoadingError e ->
@@ -419,6 +441,12 @@ errorToString error =
 
 innerView : AudioData -> Model -> Element Msg
 innerView audioData model =
+    let
+        length name =
+            Dict.get name model.loadedTracks
+                |> Maybe.map
+                    (Audio.length audioData)
+    in
     column [ width fill, height fill ]
         [ menuBar
         , Theme.column
@@ -432,7 +460,7 @@ innerView audioData model =
                     Element.none
 
                 Playing name from ->
-                    Theme.column []
+                    Theme.column [ width fill ]
                         [ Theme.row []
                             [ el [ Font.bold ] <| text Translations.playing
                             , Theme.button []
@@ -448,7 +476,7 @@ innerView audioData model =
                                 text Translations.loadingWaveform
 
                             Just raw ->
-                                viewWaveform raw
+                                viewWaveform (Duration.from from model.now) (length name) raw
                         ]
 
                 Paused name at ->
@@ -462,33 +490,155 @@ innerView audioData model =
                             ]
                         , textInvariant name
                         , timeTracker audioData model name at
+                        , case Dict.get (songNameToUrl name) model.rawData of
+                            Nothing ->
+                                text Translations.loadingWaveform
+
+                            Just raw ->
+                                viewWaveform at (length name) raw
                         ]
             , playButtons model.loadedTracks
             ]
         ]
 
 
-viewWaveform : List (List Float) -> Element msg
-viewWaveform channels =
-    let
-        viewPoint : Float -> Element msg
-        viewPoint point =
-            el
-                [ width fill
-                , height <| px <| round <| 40 * point
-                , Background.color <| rgb 0 0 0
-                ]
-                Element.none
+type alias Vertex =
+    { a_position : Vec2 }
 
-        viewChannel : List Float -> Element msg
-        viewChannel channel =
-            channel
-                |> List.map viewPoint
-                |> row [ height <| px 40, width fill ]
+
+type alias Uniforms =
+    { u_channel : Texture
+    , u_at : Float
+    }
+
+
+type alias Varyings =
+    { v_position : Vec2
+    }
+
+
+viewWaveform : Duration -> Maybe Duration -> RawData -> Element msg
+viewWaveform at length channels =
+    let
+        fullHeight : number
+        fullHeight =
+            120
+
+        tl : Vertex
+        tl =
+            Vertex (vec2 -1 1)
+
+        tr : Vertex
+        tr =
+            Vertex (vec2 1 1)
+
+        bl : Vertex
+        bl =
+            Vertex (vec2 -1 -1)
+
+        br : Vertex
+        br =
+            Vertex (vec2 1 -1)
+
+        mesh : Mesh Vertex
+        mesh =
+            WebGL.triangles [ ( tl, tr, bl ), ( tr, br, bl ) ]
+
+        texture : List Point -> Texture
+        texture channel =
+            Texture.loadBytesWith
+                { magnify = Texture.linear
+                , minify = Texture.linear
+                , horizontalWrap = Texture.clampToEdge
+                , verticalWrap = Texture.clampToEdge
+                , flipY = False
+                , premultiplyAlpha = False
+                }
+                ( sampleCount, 1 )
+                Texture.rgb
+                (Bytes.Encode.encode <|
+                    Bytes.Encode.sequence <|
+                        List.map Bytes.Encode.unsignedInt8 <|
+                            List.concatMap
+                                (\( min, rms, max ) ->
+                                    [ round <| 255 * -min
+                                    , round <| 255 * rms
+                                    , round <| 255 * max
+                                    ]
+                                )
+                                channel
+                )
+                |> unwrapResult
+
+        unwrapResult : Result e a -> a
+        unwrapResult result =
+            case result of
+                Ok o ->
+                    o
+
+                Err e ->
+                    Debug.todo (Debug.toString e)
+
+        vertexShader : Shader Vertex Uniforms Varyings
+        vertexShader =
+            [glsl|
+                attribute vec2 a_position;
+                varying vec2 v_position;
+
+                void main () {
+                    v_position = a_position;
+                    gl_Position = vec4(a_position, 0., 1.);
+                }
+            |]
+
+        fragmentShader : Shader {} Uniforms Varyings
+        fragmentShader =
+            [glsl|
+                precision mediump float;
+                varying vec2 v_position;
+                uniform sampler2D u_channel;
+                uniform float u_at;
+
+                void main () {
+                    float normalized_x = v_position.x / 2. + 0.5;
+                    vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
+                    if (abs(normalized_x - u_at) < 0.0015) {
+                        gl_FragColor = vec4(1., 0., 0., 1.);
+                    } else {
+                        if (v_position.y < -point.x || v_position.y > point.z) {
+                            gl_FragColor = vec4(0);
+                        } else if (abs(v_position.y) > point.y) {
+                            gl_FragColor = vec4(0.2, 0.2, 1., 1.);
+                        } else {
+                            gl_FragColor = vec4(0.5, 0.5, 1., 1.);
+                        }
+                    }
+                }
+            |]
+
+        webgl : List Point -> Element msg
+        webgl channel =
+            [ WebGL.entity vertexShader
+                fragmentShader
+                mesh
+                { u_channel = texture channel
+                , u_at =
+                    length
+                        |> Maybe.map (\l -> Quantity.ratio at l)
+                        |> Maybe.withDefault -1
+                }
+            ]
+                |> WebGL.toHtml
+                    [ Html.Attributes.width sampleCount
+                    , Html.Attributes.style "width" "100%"
+                    , Html.Attributes.height fullHeight
+                    , Html.Attributes.style "display" "block"
+                    ]
+                |> Element.html
+                |> el [ width fill ]
     in
-    channels
-        |> List.map viewChannel
-        |> Theme.column [ width fill ]
+    List.map webgl channels
+        |> Theme.column []
 
 
 timeTracker : AudioData -> Model -> String -> Duration -> Element msg

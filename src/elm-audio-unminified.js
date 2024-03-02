@@ -1,5 +1,5 @@
 /**
- * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; getRawAudioData: { subscribe: (arg0: (url: string) => void) => void; }; gotRawAudioData: { send: (arg0: { url: string; data: number[][]; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
+ * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; getRawAudioData: { subscribe: (arg0: (arg1: {url: string; samples: number}) => void) => void; }; gotRawAudioData: { send: (arg0: { url: string; data: number[][][]; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
  */
 function startAudio(app) {
     window.AudioContext =
@@ -243,40 +243,49 @@ function startAudio(app) {
             };
         }
 
-        app.ports.getRawAudioData.subscribe(async (url) => {
+        app.ports.getRawAudioData.subscribe(async ({ url, samples }) => {
             for (let i = 0; i < audioBuffers.length; i++) {
                 let audioBuffer = audioBuffers[i];
                 if (audioBuffer.url != url) continue;
 
                 const buffer = audioBuffer.buffer;
-                let normalizedData = [];
+                const filteredData = [];
                 for (
                     let channel = 0;
                     channel < buffer.numberOfChannels;
                     channel++
                 ) {
+                    let channelData = [];
                     const rawData = buffer.getChannelData(channel);
-                    const samples = 70; // Number of samples we want to have in our final data set
                     const blockSize = Math.floor(rawData.length / samples); // the number of samples in each subdivision
-                    const filteredData = [];
+
                     for (let i = 0; i < samples; i++) {
                         let blockStart = blockSize * i; // the location of the first sample in the block
-                        let sum = 0;
+                        let max = 0;
+                        let squares = 0;
+                        let min = 0;
                         for (let j = 0; j < blockSize; j++) {
-                            sum = sum + Math.abs(rawData[blockStart + j]); // find the sum of all the samples in the block
+                            let raw = rawData[blockStart + j];
+                            if (raw > max) {
+                                max = raw;
+                            }
+                            if (raw < min) {
+                                min = raw;
+                            }
+                            squares += raw * raw;
                         }
-                        filteredData.push(sum / blockSize); // divide the sum by the block size to get the average
+                        channelData.push([
+                            min,
+                            Math.sqrt(squares / blockSize),
+                            max,
+                        ]); // divide the sum by the block size to get the average
                     }
-
-                    const multiplier = Math.pow(Math.max(...filteredData), -1);
-                    normalizedData.push(
-                        filteredData.map((n) => n * multiplier)
-                    );
+                    filteredData.push(channelData);
                 }
 
                 app.ports.gotRawAudioData.send({
                     url: url,
-                    data: normalizedData,
+                    data: filteredData,
                 });
             }
         });
