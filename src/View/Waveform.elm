@@ -17,7 +17,8 @@ type alias Vertex =
 
 type alias Uniforms =
     { u_channel : Texture
-    , u_at : Float
+    , u_sampleCount : Int
+    , u_at : Int
     }
 
 
@@ -51,6 +52,57 @@ mesh =
     WebGL.triangles [ ( tl, tr, bl ), ( tr, br, bl ) ]
 
 
+unsafeUnwrapResult : Result e a -> a
+unsafeUnwrapResult result =
+    case result of
+        Ok o ->
+            o
+
+        Err _ ->
+            (\a -> a) (unsafeUnwrapResult result)
+
+
+vertexShader : Shader Vertex Uniforms Varyings
+vertexShader =
+    [glsl|
+        attribute vec2 a_position;
+        varying vec2 v_position;
+
+        void main () {
+            v_position = a_position;
+            gl_Position = vec4(a_position, 0., 1.);
+        }
+    |]
+
+
+fragmentShader : Shader {} Uniforms Varyings
+fragmentShader =
+    [glsl|
+        precision mediump float;
+        varying vec2 v_position;
+        uniform sampler2D u_channel;
+        uniform int u_at;
+        uniform int u_sampleCount;
+
+        void main () {
+            float normalized_x = v_position.x / 2. + 0.5;
+            vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
+            int pixel_x = int(gl_FragCoord.x - 0.5);
+            if (pixel_x == u_at) {
+                gl_FragColor = vec4(1., 0., 0., 1.);
+            } else {
+                if (v_position.y < -point.x || v_position.y > point.z) {
+                    discard;
+                } else if (abs(v_position.y) > point.y) {
+                    gl_FragColor = vec4(0.196, 0.196, 0.784, 1.);
+                } else {
+                    gl_FragColor = vec4(0.392, 0.392, 0.863, 1.);
+                }
+            }
+        }
+    |]
+
+
 view : Duration -> Maybe Duration -> RawData -> List (Html msg)
 view at length channels =
     let
@@ -60,10 +112,6 @@ view at length channels =
                 |> List.map List.length
                 |> List.minimum
                 |> Maybe.withDefault 0
-
-        fullHeight : number
-        fullHeight =
-            120
 
         texture : List Point -> Texture
         texture channel =
@@ -87,53 +135,7 @@ view at length channels =
                     }
                     ( sampleCount, 1 )
                     Texture.rgb
-                |> unwrapResult
-
-        unwrapResult : Result e a -> a
-        unwrapResult result =
-            case result of
-                Ok o ->
-                    o
-
-                Err _ ->
-                    (\a -> a) (unwrapResult result)
-
-        vertexShader : Shader Vertex Uniforms Varyings
-        vertexShader =
-            [glsl|
-                attribute vec2 a_position;
-                varying vec2 v_position;
-
-                void main () {
-                    v_position = a_position;
-                    gl_Position = vec4(a_position, 0., 1.);
-                }
-            |]
-
-        fragmentShader : Shader {} Uniforms Varyings
-        fragmentShader =
-            [glsl|
-                precision mediump float;
-                varying vec2 v_position;
-                uniform sampler2D u_channel;
-                uniform float u_at;
-
-                void main () {
-                    float normalized_x = v_position.x / 2. + 0.5;
-                    vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
-                    if (abs(normalized_x - u_at) < 0.0015) {
-                        gl_FragColor = vec4(1., 0., 0., 1.);
-                    } else {
-                        if (v_position.y < -point.x || v_position.y > point.z) {
-                            gl_FragColor = vec4(0);
-                        } else if (abs(v_position.y) > point.y) {
-                            gl_FragColor = vec4(0.2, 0.2, 1., 1.);
-                        } else {
-                            gl_FragColor = vec4(0.5, 0.5, 1., 1.);
-                        }
-                    }
-                }
-            |]
+                |> unsafeUnwrapResult
 
         webgl : List Point -> Html msg
         webgl channel =
@@ -141,16 +143,17 @@ view at length channels =
                 fragmentShader
                 mesh
                 { u_channel = texture channel
+                , u_sampleCount = sampleCount
                 , u_at =
                     length
-                        |> Maybe.map (\l -> Quantity.ratio at l)
+                        |> Maybe.map (\l -> round <| toFloat sampleCount * Quantity.ratio at l)
                         |> Maybe.withDefault -1
                 }
             ]
                 |> WebGL.toHtml
                     [ Html.Attributes.width sampleCount
                     , Html.Attributes.style "width" "100%"
-                    , Html.Attributes.height fullHeight
+                    , Html.Attributes.height 200
                     , Html.Attributes.style "display" "block"
                     ]
     in

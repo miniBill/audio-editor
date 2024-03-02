@@ -41,7 +41,7 @@ port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
 
 sampleCount : number
 sampleCount =
-    1024
+    2048
 
 
 type alias Flags =
