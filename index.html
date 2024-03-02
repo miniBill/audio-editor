@@ -21,6 +21,8 @@
                 node: document.querySelector("main"),
                 flags: {
                     language: navigator.language,
+                    width: window.innerWidth,
+                    height: window.innerHeight,
                     now: new Date().getTime(),
                     hasAudio: hasAudio,
                     sampleRate: hasAudio ? new AudioContext().sampleRate : -1,

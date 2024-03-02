@@ -39,16 +39,13 @@ port getRawAudioData : { url : String, samples : Int } -> Cmd msg
 port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
 
 
-sampleCount : number
-sampleCount =
-    2048
-
-
 type alias Flags =
     { language : String
     , now : Int
     , hasAudio : Bool
     , sampleRate : Int
+    , width : Int
+    , height : Int
     }
 
 
@@ -61,6 +58,8 @@ type alias Model =
     , now : Time.Posix
     , rawData : Dict String RawData
     , sampleRate : Int
+    , width : Int
+    , height : Int
     }
 
 
@@ -87,6 +86,7 @@ type Msg
     | GotPlaylist (Result Http.Error String)
     | Tick Time.Posix
     | GotRawAudioData Json.Decode.Value
+    | Resize Int Int
 
 
 type TimedMsg
@@ -203,6 +203,8 @@ init flags =
                 , now = Time.millisToPosix flags.now
                 , rawData = Dict.empty
                 , sampleRate = flags.sampleRate
+                , width = flags.width
+                , height = flags.height
                 }
                     |> Just
 
@@ -291,7 +293,7 @@ update audioData msg ({ context } as model) =
 
         TimedMsg (Play song) now ->
             ( { model | playing = Playing song now }
-            , getRawAudioData { url = songNameToUrl song, samples = sampleCount }
+            , getRawAudioData { url = songNameToUrl song, samples = model.width }
             , Audio.cmdNone
             )
 
@@ -363,6 +365,20 @@ update audioData msg ({ context } as model) =
 
                 Ok { url, data } ->
                     pure { model | rawData = Dict.insert url data model.rawData }
+
+        Resize width height ->
+            ( { model | width = width, height = height }
+            , case model.playing of
+                Playing song _ ->
+                    getRawAudioData { url = songNameToUrl song, samples = width }
+
+                Paused song _ ->
+                    getRawAudioData { url = songNameToUrl song, samples = width }
+
+                Stopped ->
+                    Cmd.none
+            , Audio.cmdNone
+            )
 
 
 songNameToUrl : String -> String
@@ -494,8 +510,8 @@ innerView audioData model =
 viewWaveform : Duration -> Maybe Duration -> RawData -> Element msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
-        |> List.map (Element.html >> el [])
-        |> Theme.column []
+        |> List.map (Element.html >> el [ width fill ])
+        |> Theme.column [ width fill ]
 
 
 timeTracker : AudioData -> Model -> String -> Duration -> Element msg
@@ -614,4 +630,5 @@ subscriptions _ _ =
     Sub.batch
         [ gotRawAudioData GotRawAudioData
         , Browser.Events.onAnimationFrame Tick
+        , Browser.Events.onResize Resize
         ]

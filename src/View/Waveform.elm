@@ -90,14 +90,12 @@ fragmentShader =
             int pixel_x = int(gl_FragCoord.x - 0.5);
             if (pixel_x == u_at) {
                 gl_FragColor = vec4(1., 0., 0., 1.);
+            } else if (v_position.y < -point.x || v_position.y > point.z) {
+                gl_FragColor = vec4(0.753, 0.753, 0.753, 1.);
+            } else if (abs(v_position.y) > point.y) {
+                gl_FragColor = vec4(0.196, 0.196, 0.784, 1.);
             } else {
-                if (v_position.y < -point.x || v_position.y > point.z) {
-                    discard;
-                } else if (abs(v_position.y) > point.y) {
-                    gl_FragColor = vec4(0.196, 0.196, 0.784, 1.);
-                } else {
-                    gl_FragColor = vec4(0.392, 0.392, 0.863, 1.);
-                }
+                gl_FragColor = vec4(0.392, 0.392, 0.863, 1.);
             }
         }
     |]
@@ -154,6 +152,7 @@ view at length channels =
                     [ Html.Attributes.width sampleCount
                     , Html.Attributes.style "width" "100%"
                     , Html.Attributes.height 200
+                    , Html.Attributes.style "max-height" "200px"
                     , Html.Attributes.style "display" "block"
                     ]
     in
