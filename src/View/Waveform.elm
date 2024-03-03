@@ -8,7 +8,6 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import Json.Decode
-import Json.Encode
 import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Types exposing (Point, RawData)
@@ -167,7 +166,6 @@ view at length channels =
                             |> Json.Decode.map
                                 (\offsetX ->
                                     (offsetX / toFloat sampleCount)
-                                        |> Debug.log "offsetX"
                                         |> Click
                                 )
                         )
