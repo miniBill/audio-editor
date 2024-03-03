@@ -585,10 +585,15 @@ playButtons =
                     (\t ->
                         Theme.button []
                             { label =
-                                t
-                                    |> String.split " - "
-                                    |> List.drop 2
-                                    |> String.join " - "
+                                (if String.contains " - " t then
+                                    t
+                                        |> String.split " - "
+                                        |> List.drop 2
+                                        |> String.join " - "
+
+                                 else
+                                    t
+                                )
                                     |> Translations.play
                                     |> text
                             , onPress = Just <| UntimedMsg <| Play t
