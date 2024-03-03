@@ -585,11 +585,12 @@ playButtons =
                     (\t ->
                         Theme.button []
                             { label =
-                                (if String.contains " - " t then
+                                (if String.contains "-" t then
                                     t
-                                        |> String.split " - "
+                                        |> String.split "-"
                                         |> List.drop 2
-                                        |> String.join " - "
+                                        |> String.join "-"
+                                        |> String.trim
 
                                  else
                                     t
