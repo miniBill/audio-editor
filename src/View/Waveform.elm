@@ -1,4 +1,4 @@
-module View.Waveform exposing (Vertex, view)
+module View.Waveform exposing (Msg(..), Vertex, view)
 
 import Bytes.Encode
 import Duration exposing (Duration)
@@ -6,9 +6,16 @@ import Effect.WebGL as WebGL exposing (Mesh, Shader)
 import Effect.WebGL.Texture as Texture exposing (Texture)
 import Html exposing (Html)
 import Html.Attributes
+import Html.Events
+import Json.Decode
+import Json.Encode
 import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Types exposing (Point, RawData)
+
+
+type Msg
+    = Click Float
 
 
 type alias Vertex =
@@ -101,7 +108,7 @@ fragmentShader =
     |]
 
 
-view : Duration -> Maybe Duration -> RawData -> List (Html msg)
+view : Duration -> Maybe Duration -> RawData -> List (Html Msg)
 view at length channels =
     let
         sampleCount : Int
@@ -135,7 +142,7 @@ view at length channels =
                     Texture.rgb
                 |> unsafeUnwrapResult
 
-        webgl : List Point -> Html msg
+        webgl : List Point -> Html Msg
         webgl channel =
             [ WebGL.entity vertexShader
                 fragmentShader
@@ -154,6 +161,16 @@ view at length channels =
                     , Html.Attributes.height 200
                     , Html.Attributes.style "max-height" "200px"
                     , Html.Attributes.style "display" "block"
+                    , Html.Events.on "click"
+                        (Json.Decode.float
+                            |> Json.Decode.at [ "offsetX" ]
+                            |> Json.Decode.map
+                                (\offsetX ->
+                                    (offsetX / toFloat sampleCount)
+                                        |> Debug.log "offsetX"
+                                        |> Click
+                                )
+                        )
                     ]
     in
     List.map webgl channels

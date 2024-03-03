@@ -87,6 +87,7 @@ type Msg
     | Tick Time.Posix
     | GotRawAudioData Json.Decode.Value
     | Resize Int Int
+    | WaveformMsg View.Waveform.Msg
 
 
 type TimedMsg
@@ -382,6 +383,37 @@ update audioData msg ({ context } as model) =
             , Audio.cmdNone
             )
 
+        WaveformMsg (View.Waveform.Click clickedAt) ->
+            let
+                getLength : String -> Maybe Duration
+                getLength name =
+                    Dict.get name model.loadedTracks
+                        |> Maybe.map (Audio.length audioData)
+            in
+            pure
+                { model
+                    | playing =
+                        case model.playing of
+                            Playing song _ ->
+                                case getLength song of
+                                    Nothing ->
+                                        model.playing
+
+                                    Just length ->
+                                        Playing song (Duration.subtractFrom model.now <| Quantity.multiplyBy clickedAt length)
+
+                            Stopped ->
+                                model.playing
+
+                            Paused song _ ->
+                                case getLength song of
+                                    Nothing ->
+                                        model.playing
+
+                                    Just length ->
+                                        Paused song (Quantity.multiplyBy clickedAt length)
+                }
+
 
 getRawAudioDataIfPlaying : Model -> Cmd Msg
 getRawAudioDataIfPlaying model =
@@ -522,11 +554,12 @@ innerView audioData model =
         ]
 
 
-viewWaveform : Duration -> Maybe Duration -> RawData -> Element msg
+viewWaveform : Duration -> Maybe Duration -> RawData -> Element Msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
         |> List.map (Element.html >> el [ width fill ])
         |> Theme.column [ width fill ]
+        |> Element.map WaveformMsg
 
 
 timeTracker : AudioData -> Model -> String -> Duration -> Element msg
