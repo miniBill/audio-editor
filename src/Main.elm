@@ -22,7 +22,7 @@ import Task
 import Theme exposing (Context, Element, text, textInvariant)
 import Time
 import Translations
-import Types exposing (RawData)
+import Types exposing (AudioSummary)
 import Url.Builder
 import View.Waveform
 
@@ -33,10 +33,10 @@ port audioPortToJS : Json.Encode.Value -> Cmd msg
 port audioPortFromJS : (Json.Decode.Value -> msg) -> Sub msg
 
 
-port getRawAudioData : { url : String, samples : Int } -> Cmd msg
+port getAudioSummary : { url : String, samples : Int } -> Cmd msg
 
 
-port gotRawAudioData : (Json.Decode.Value -> msg) -> Sub msg
+port gotAudioSummary : (Json.Decode.Value -> msg) -> Sub msg
 
 
 type alias Flags =
@@ -56,7 +56,7 @@ type alias Model =
     , loadedTracks : Dict String Audio.Source
     , mainVolume : Float
     , now : Time.Posix
-    , rawData : Dict String RawData
+    , rawData : Dict String AudioSummary
     , sampleRate : Int
     , width : Int
     , height : Int
@@ -85,7 +85,7 @@ type Msg
     | Volume Float
     | GotPlaylist (Result Http.Error String)
     | Tick Time.Posix
-    | GotRawAudioData Json.Decode.Value
+    | GotAudioSummary Json.Decode.Value
     | Resize Int Int
     | WaveformMsg View.Waveform.Msg
 
@@ -299,7 +299,7 @@ update audioData msg ({ context } as model) =
                     { model | playing = Playing song now }
             in
             ( newModel
-            , getRawAudioDataIfPlaying newModel
+            , getAudioSummaryIfPlaying newModel
             , Audio.cmdNone
             )
 
@@ -345,9 +345,9 @@ update audioData msg ({ context } as model) =
                 |> stopOnSongEnd audioData
                 |> pure
 
-        GotRawAudioData value ->
+        GotAudioSummary value ->
             let
-                decoder : Json.Decode.Decoder { url : String, data : RawData }
+                decoder : Json.Decode.Decoder { url : String, data : AudioSummary }
                 decoder =
                     Json.Decode.map2
                         (\url data -> { url = url, data = data })
@@ -379,7 +379,7 @@ update audioData msg ({ context } as model) =
                     { model | width = width, height = height }
             in
             ( newModel
-            , getRawAudioDataIfPlaying newModel
+            , getAudioSummaryIfPlaying newModel
             , Audio.cmdNone
             )
 
@@ -415,14 +415,14 @@ update audioData msg ({ context } as model) =
                 }
 
 
-getRawAudioDataIfPlaying : Model -> Cmd Msg
-getRawAudioDataIfPlaying model =
+getAudioSummaryIfPlaying : Model -> Cmd Msg
+getAudioSummaryIfPlaying model =
     case model.playing of
         Playing song _ ->
-            getRawAudioData { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
+            getAudioSummary { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
 
         Paused song _ ->
-            getRawAudioData { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
+            getAudioSummary { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
 
         Stopped ->
             Cmd.none
@@ -554,7 +554,7 @@ innerView audioData model =
         ]
 
 
-viewWaveform : Duration -> Maybe Duration -> RawData -> Element Msg
+viewWaveform : Duration -> Maybe Duration -> AudioSummary -> Element Msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
         |> List.map (Element.html >> el [ width fill ])
@@ -681,7 +681,7 @@ languagePicker =
 subscriptions : AudioData -> Model -> Sub Msg
 subscriptions _ _ =
     Sub.batch
-        [ gotRawAudioData GotRawAudioData
+        [ gotAudioSummary GotAudioSummary
         , Browser.Events.onAnimationFrame Tick
         , Browser.Events.onResize Resize
         ]

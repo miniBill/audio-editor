@@ -1,7 +1,7 @@
-module Types exposing (Point, RawData)
+module Types exposing (AudioSummary, Point)
 
 
-type alias RawData =
+type alias AudioSummary =
     List (List Point)
 
 

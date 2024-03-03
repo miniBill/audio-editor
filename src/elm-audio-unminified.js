@@ -1,5 +1,5 @@
 /**
- * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; getRawAudioData: { subscribe: (arg0: (arg1: {url: string; samples: number}) => void) => void; }; gotRawAudioData: { send: (arg0: { url: string; data: number[][][]; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
+ * @param {{ ports: { audioPortFromJS: { send: (arg0: { type: number; samplesPerSecond?: number; requestId?: number; error?: any; bufferId?: number; durationInSeconds?: number; }) => void; }; getAudioSummary: { subscribe: (arg0: (arg1: {url: string; samples: number}) => void) => void; }; gotAudioSummary: { send: (arg0: { url: string; data: number[][][]; }) => void; }; audioPortToJS: { subscribe: (arg0: (message: any) => void) => void; }; }; }} app
  */
 function startAudio(app) {
     window.AudioContext =
@@ -243,7 +243,7 @@ function startAudio(app) {
             };
         }
 
-        app.ports.getRawAudioData.subscribe(async ({ url, samples }) => {
+        app.ports.getAudioSummary.subscribe(async ({ url, samples }) => {
             for (let i = 0; i < audioBuffers.length; i++) {
                 let audioBuffer = audioBuffers[i];
                 if (audioBuffer.url != url) continue;
@@ -283,7 +283,7 @@ function startAudio(app) {
                     filteredData.push(channelData);
                 }
 
-                app.ports.gotRawAudioData.send({
+                app.ports.gotAudioSummary.send({
                     url: url,
                     data: filteredData,
                 });

@@ -10,7 +10,7 @@ import Html.Events
 import Json.Decode
 import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
-import Types exposing (Point, RawData)
+import Types exposing (AudioSummary, Point)
 
 
 type Msg
@@ -107,7 +107,7 @@ fragmentShader =
     |]
 
 
-view : Duration -> Maybe Duration -> RawData -> List (Html Msg)
+view : Duration -> Maybe Duration -> AudioSummary -> List (Html Msg)
 view at length channels =
     let
         sampleCount : Int
