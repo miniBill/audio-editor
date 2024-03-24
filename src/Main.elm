@@ -92,8 +92,7 @@ type Msg
 
 type TimedMsg
     = Play String
-    | Pause
-    | Resume
+    | PauseResume
 
 
 main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
@@ -303,7 +302,7 @@ update audioData msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        TimedMsg Pause now ->
+        TimedMsg PauseResume now ->
             pure
                 { model
                     | playing =
@@ -311,19 +310,10 @@ update audioData msg ({ context } as model) =
                             Playing song from ->
                                 Paused song <| Duration.from from now
 
-                            _ ->
-                                model.playing
-                }
-
-        TimedMsg Resume now ->
-            pure
-                { model
-                    | playing =
-                        case model.playing of
                             Paused song duration ->
                                 Playing song <| Duration.subtractFrom now duration
 
-                            _ ->
+                            Stopped ->
                                 model.playing
                 }
 
@@ -516,7 +506,7 @@ innerView audioData model =
                         [ Theme.row []
                             [ el [ Font.bold ] <| text Translations.playing
                             , Theme.button []
-                                { onPress = Just <| UntimedMsg Pause
+                                { onPress = Just <| UntimedMsg PauseResume
                                 , label = text Translations.pause
                                 }
                             ]
@@ -536,7 +526,7 @@ innerView audioData model =
                         [ Theme.row []
                             [ el [ Font.bold ] <| text Translations.paused
                             , Theme.button []
-                                { onPress = Just <| UntimedMsg Resume
+                                { onPress = Just <| UntimedMsg PauseResume
                                 , label = text Translations.resume
                                 }
                             ]
@@ -685,4 +675,19 @@ subscriptions _ _ =
         [ gotAudioSummary GotAudioSummary
         , Browser.Events.onAnimationFrame Tick
         , Browser.Events.onResize Resize
+        , Browser.Events.onKeyPress keypressDecoder
         ]
+
+
+keypressDecoder : Json.Decode.Decoder Msg
+keypressDecoder =
+    Json.Decode.field "key" Json.Decode.string
+        |> Json.Decode.andThen
+            (\key ->
+                case key of
+                    " " ->
+                        Json.Decode.succeed (UntimedMsg PauseResume)
+
+                    _ ->
+                        Json.Decode.fail "Ignored"
+            )
