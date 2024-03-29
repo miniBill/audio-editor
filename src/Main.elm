@@ -573,53 +573,39 @@ innerView audioData model playlist =
         ( header, at ) =
             case model.playing of
                 Stopped ->
-                    ( [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.stopped
-                            , Theme.button []
-                                { onPress = Just Play
-                                , label = text Translations.play
-                                }
-                            ]
-                      , timeTracker audioData model Quantity.zero
+                    ( [ el [ Font.bold ] <| text Translations.stopped
+                      , Theme.button []
+                            { onPress = Just Play
+                            , label = text Translations.play
+                            }
                       ]
                     , Nothing
                     )
 
                 Playing from ->
-                    let
-                        at_ : Duration
-                        at_ =
-                            Duration.from from model.now
-                    in
-                    ( [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.playing
-                            , Theme.button []
-                                { onPress = Just PauseResume
-                                , label = text Translations.pause
-                                }
-                            , Theme.button []
-                                { onPress = Just Stop
-                                , label = text Translations.stop
-                                }
-                            ]
-                      , timeTracker audioData model at_
+                    ( [ el [ Font.bold ] <| text Translations.playing
+                      , Theme.button []
+                            { onPress = Just PauseResume
+                            , label = text Translations.pause
+                            }
+                      , Theme.button []
+                            { onPress = Just Stop
+                            , label = text Translations.stop
+                            }
                       ]
-                    , Just at_
+                    , Just (Duration.from from model.now)
                     )
 
                 Paused at_ ->
-                    ( [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.paused
-                            , Theme.button []
-                                { onPress = Just PauseResume
-                                , label = text Translations.resume
-                                }
-                            , Theme.button []
-                                { onPress = Just Stop
-                                , label = text Translations.stop
-                                }
-                            ]
-                      , timeTracker audioData model at_
+                    ( [ el [ Font.bold ] <| text Translations.paused
+                      , Theme.button []
+                            { onPress = Just PauseResume
+                            , label = text Translations.resume
+                            }
+                      , Theme.button []
+                            { onPress = Just Stop
+                            , label = text Translations.stop
+                            }
                       ]
                     , Just at_
                     )
@@ -632,9 +618,10 @@ innerView audioData model playlist =
             , height fill
             ]
             (volumeSlider model.mainVolume
-                :: header
-                ++ viewTracks
-                ++ [ playButtons playlist ]
+                :: Theme.row [] header
+                :: timeTracker audioData model (Maybe.withDefault Quantity.zero at)
+                :: viewTracks
+                ++ [ addButtons playlist ]
             )
         ]
 
@@ -661,8 +648,8 @@ timeTracker audioData model at =
                         ++ durationToString length
 
 
-playButtons : List String -> Element Msg
-playButtons =
+addButtons : List String -> Element Msg
+addButtons =
     Lazy.lazy <|
         \playlist ->
             playlist

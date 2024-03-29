@@ -150,9 +150,12 @@ view length at channels =
                 { u_channel = texture channel
                 , u_sampleCount = sampleCount
                 , u_at =
-                    at
-                        |> Maybe.map (\l -> round <| toFloat sampleCount * Quantity.ratio length l)
-                        |> Maybe.withDefault -1
+                    case at of
+                        Just at_ ->
+                            round <| toFloat sampleCount * Quantity.ratio at_ length
+
+                        Nothing ->
+                            -1
                 }
             ]
                 |> WebGL.toHtml
