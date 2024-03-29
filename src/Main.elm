@@ -184,7 +184,13 @@ audio : AudioData -> Model -> Audio
 audio _ model =
     case model.playing of
         Playing from ->
+            let
+                hasSolos : Bool
+                hasSolos =
+                    List.any .solo model.tracks
+            in
             model.tracks
+                |> List.filter (\{ mute, solo } -> solo || (not hasSolos && not mute))
                 |> List.map
                     (\{ source, offset } ->
                         Audio.audio source (Duration.addTo from offset)
@@ -618,6 +624,10 @@ viewTracks audioData model at =
             { totalLength = totalLength audioData model
             , at = at
             }
+
+        hasSolos : Bool
+        hasSolos =
+            List.any .solo model.tracks
     in
     Table.view [ Theme.spacing, padding 0 ]
         (Table.columns
@@ -672,7 +682,15 @@ viewTracks audioData model at =
                     \( _, track ) ->
                         Table.cell [ padding 0, width <| px <| waveviewWidth model ] <|
                             Ui.map WaveformMsg <|
-                                View.Waveform.view waveformConfig track
+                                View.Waveform.view waveformConfig
+                                    { track
+                                        | mute =
+                                            if hasSolos then
+                                                not track.solo
+
+                                            else
+                                                track.mute
+                                    }
                 }
             ]
         )
