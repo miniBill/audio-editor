@@ -1,8 +1,7 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, main)
+port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, Track, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
-import Dict exposing (Dict)
 import Duration exposing (Duration)
 import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, width)
 import Element.WithContext.Background as Background
@@ -15,7 +14,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
-import Quantity
+import Quantity exposing (Quantity)
 import Round
 import Task
 import Theme exposing (Context, Element, text, textInvariant)
@@ -52,53 +51,66 @@ type alias Model =
     { context : Context
     , inner : InnerModel
     , playing : PlayingStatus
-    , loadedTracks : Dict String Audio.Source
+    , tracks : List Track
     , mainVolume : Float
     , now : Time.Posix
-    , rawData : Dict String AudioSummary
     , sampleRate : Int
     , width : Int
     , height : Int
     }
 
 
+type alias Track =
+    { name : String
+    , url : String
+    , source : Audio.Source
+    , summary : Maybe AudioSummary
+    , offset : Duration
+    }
+
+
 type PlayingStatus
     = Stopped
-    | Playing String Time.Posix
-    | Paused String Duration
+    | Playing Time.Posix
+    | Paused Duration
 
 
 type InnerModel
     = LoadingPlaylist
-    | LoadedPlaylist
+    | LoadedPlaylist (List String)
     | LoadingError Http.Error
 
 
 type Msg
     = LoadedTranslation (Result Http.Error Translations.I18n)
     | SwitchLanguage Translations.Language
-    | UntimedMsg TimedMsg
-    | TimedMsg TimedMsg Time.Posix
     | SwitchedLanguage (Result Http.Error (Translations.I18n -> Translations.I18n))
-    | LoadedAudio (Result Audio.LoadError ( String, Audio.Source ))
+    | LoadedAudio (Result Audio.LoadError { name : String, url : String, source : Audio.Source })
     | Volume Float
     | GotPlaylist (Result Http.Error String)
-    | Tick Time.Posix
+    | Tick
     | GotAudioSummary Json.Decode.Value
     | Resize Int Int
     | WaveformMsg View.Waveform.Msg
-
-
-type TimedMsg
-    = Play String
+    | AddTrack String
+    | Play
     | PauseResume
+    | Stop
 
 
-main : Program Flags (Audio.Model Msg (Maybe Model)) (Audio.Msg Msg)
+type Timed msg
+    = Untimed msg
+    | Timed msg Time.Posix
+
+
+main : Program Flags (Audio.Model (Timed Msg) (Maybe Model)) (Audio.Msg (Timed Msg))
 main =
     Audio.elementWithAudio
-        { init = init
-        , view = maybe noAudioError outerView
+        { init = \flags -> mapTriple (init flags)
+        , view =
+            \audioData model ->
+                maybe noAudioError outerView audioData model
+                    |> Html.map Untimed
         , update =
             \audioData msg maybeModel ->
                 case maybeModel of
@@ -106,15 +118,30 @@ main =
                         ( maybeModel, Cmd.none, Audio.cmdNone )
 
                     Just model ->
-                        let
-                            ( newModel, cmd, audioCmd ) =
-                                update audioData msg model
-                        in
-                        ( Just newModel, cmd, audioCmd )
+                        case msg of
+                            Timed innerMsg now ->
+                                let
+                                    ( newModel, cmd, audioCmd ) =
+                                        update audioData now innerMsg model
+                                in
+                                mapTriple ( Just newModel, cmd, audioCmd )
+
+                            Untimed innerMsg ->
+                                ( maybeModel
+                                , Task.perform (Timed innerMsg) Time.now
+                                , Audio.cmdNone
+                                )
         , subscriptions = maybe Sub.none subscriptions
         , audio = maybe Audio.silence audio
         , audioPort = audioPort
         }
+
+
+mapTriple :
+    ( Maybe Model, Cmd Msg, AudioCmd Msg )
+    -> ( Maybe Model, Cmd (Timed Msg), AudioCmd (Timed Msg) )
+mapTriple ( model, cmd, audioCmd ) =
+    ( model, Cmd.map Untimed cmd, Audio.cmdMap Untimed audioCmd )
 
 
 noAudioError : Html Msg
@@ -161,17 +188,16 @@ audioPort =
 audio : AudioData -> Model -> Audio
 audio _ model =
     case model.playing of
-        Playing name from ->
-            Dict.get name model.loadedTracks
-                |> Maybe.map
-                    (\source ->
-                        [ Audio.audio source from ]
-                            |> Audio.group
-                            |> Audio.scaleVolume model.mainVolume
+        Playing from ->
+            model.tracks
+                |> List.map
+                    (\{ source, offset } ->
+                        Audio.audio source (Duration.addTo from offset)
                     )
-                |> Maybe.withDefault Audio.silence
+                |> Audio.group
+                |> Audio.scaleVolume model.mainVolume
 
-        Paused _ _ ->
+        Paused _ ->
             Audio.silence
 
         Stopped ->
@@ -196,11 +222,10 @@ init flags =
             if flags.hasAudio then
                 { context = { i18n = i18n }
                 , inner = LoadingPlaylist
-                , loadedTracks = Dict.empty
+                , tracks = []
                 , playing = Stopped
                 , mainVolume = 0.5
                 , now = Time.millisToPosix flags.now
-                , rawData = Dict.empty
                 , sampleRate = flags.sampleRate
                 , width = flags.width
                 , height = flags.height
@@ -221,15 +246,15 @@ init flags =
             i18n
         , Http.get
             { url = "/public/playlist.txt"
-            , expect = Http.expectString GotPlaylist
+            , expect = Http.expectString (\playlist -> GotPlaylist playlist)
             }
         ]
     , Audio.cmdNone
     )
 
 
-update : AudioData -> Msg -> Model -> ( Model, Cmd Msg, AudioCmd Msg )
-update audioData msg ({ context } as model) =
+update : AudioData -> Time.Posix -> Msg -> Model -> ( Model, Cmd Msg, AudioCmd Msg )
+update audioData now msg ({ context } as model) =
     let
         updateContext : Context -> ( Model, Cmd msg, AudioCmd msg )
         updateContext newContext =
@@ -256,17 +281,7 @@ update audioData msg ({ context } as model) =
                     String.split "\n" playlist
                         |> List.Extra.removeWhen String.isEmpty
             in
-            ( { model | inner = LoadedPlaylist }
-            , Cmd.none
-            , tracks
-                |> List.map
-                    (\name ->
-                        songNameToUrl name
-                            |> Audio.loadAudio
-                                (\result -> LoadedAudio <| Result.map (\source -> ( name, source )) result)
-                    )
-                |> Audio.cmdBatch
-            )
+            pure { model | inner = LoadedPlaylist tracks }
 
         SwitchedLanguage (Err _) ->
             pure model
@@ -284,37 +299,34 @@ update audioData msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        UntimedMsg inner ->
-            ( model
-            , Task.perform (TimedMsg inner) Time.now
-            , Audio.cmdNone
-            )
-
-        TimedMsg (Play song) now ->
+        Play ->
             let
                 newModel : Model
                 newModel =
-                    { model | playing = Playing song now }
+                    { model | playing = Playing now }
             in
             ( newModel
-            , getAudioSummaryIfPlaying newModel
+            , Cmd.none
             , Audio.cmdNone
             )
 
-        TimedMsg PauseResume now ->
+        PauseResume ->
             pure
                 { model
                     | playing =
                         case model.playing of
-                            Playing song from ->
-                                Paused song <| Duration.from from now
+                            Playing from ->
+                                Paused <| Duration.from from now
 
-                            Paused song duration ->
-                                Playing song <| Duration.subtractFrom now duration
+                            Paused duration ->
+                                Playing <| Duration.subtractFrom now duration
 
                             Stopped ->
                                 model.playing
                 }
+
+        Stop ->
+            pure { model | playing = Stopped }
 
         LoadedAudio (Err e) ->
             let
@@ -323,23 +335,40 @@ update audioData msg ({ context } as model) =
             in
             pure model
 
-        LoadedAudio (Ok ( name, source )) ->
-            pure { model | loadedTracks = Dict.insert name source model.loadedTracks }
+        LoadedAudio (Ok { name, url, source }) ->
+            let
+                newTrack : Track
+                newTrack =
+                    { name = name
+                    , url = url
+                    , source = source
+                    , summary = Nothing
+                    , offset = Quantity.zero
+                    }
+
+                newModel : Model
+                newModel =
+                    { model | tracks = model.tracks ++ [ newTrack ] }
+            in
+            ( newModel
+            , getMissingAudioSummaries newModel
+            , Audio.cmdNone
+            )
 
         Volume volume ->
             pure { model | mainVolume = volume }
 
-        Tick now ->
+        Tick ->
             { model | now = now }
                 |> stopOnSongEnd audioData
                 |> pure
 
         GotAudioSummary value ->
             let
-                decoder : Json.Decode.Decoder { url : String, data : AudioSummary }
+                decoder : Json.Decode.Decoder { url : String, summary : AudioSummary }
                 decoder =
                     Json.Decode.map2
-                        (\url data -> { url = url, data = data })
+                        (\url summary -> { url = url, summary = summary })
                         (Json.Decode.field "url" Json.Decode.string)
                         (Json.Decode.field "data" <|
                             Json.Decode.list <|
@@ -358,8 +387,20 @@ update audioData msg ({ context } as model) =
                     in
                     pure model
 
-                Ok { url, data } ->
-                    pure { model | rawData = Dict.insert url data model.rawData }
+                Ok { url, summary } ->
+                    pure
+                        { model
+                            | tracks =
+                                List.map
+                                    (\track ->
+                                        if track.url == url then
+                                            { track | summary = Just summary }
+
+                                        else
+                                            track
+                                    )
+                                    model.tracks
+                        }
 
         Resize width height ->
             let
@@ -368,41 +409,35 @@ update audioData msg ({ context } as model) =
                     { model | width = width, height = height }
             in
             ( newModel
-            , getAudioSummaryIfPlaying newModel
+            , getMissingAudioSummaries newModel
             , Audio.cmdNone
             )
 
         WaveformMsg waveformMsg ->
-            let
-                getLength : String -> Maybe Duration
-                getLength name =
-                    Dict.get name model.loadedTracks
-                        |> Maybe.map (Audio.length audioData)
-            in
             case waveformMsg of
                 View.Waveform.Up clickedAt ->
                     pure
                         { model
                             | playing =
-                                case model.playing of
-                                    Playing song _ ->
-                                        case getLength song of
-                                            Nothing ->
-                                                model.playing
+                                totalLength audioData model
+                                    |> Maybe.map
+                                        (\length ->
+                                            let
+                                                at : Duration
+                                                at =
+                                                    Quantity.multiplyBy clickedAt length
+                                            in
+                                            case model.playing of
+                                                Playing _ ->
+                                                    Playing (Duration.subtractFrom model.now at)
 
-                                            Just length ->
-                                                Playing song (Duration.subtractFrom model.now <| Quantity.multiplyBy clickedAt length)
+                                                Paused _ ->
+                                                    Paused at
 
-                                    Stopped ->
-                                        model.playing
-
-                                    Paused song _ ->
-                                        case getLength song of
-                                            Nothing ->
-                                                model.playing
-
-                                            Just length ->
-                                                Paused song (Quantity.multiplyBy clickedAt length)
+                                                Stopped ->
+                                                    model.playing
+                                        )
+                                    |> Maybe.withDefault model.playing
                         }
 
                 View.Waveform.Down _ ->
@@ -411,18 +446,54 @@ update audioData msg ({ context } as model) =
                 View.Waveform.Move _ ->
                     pure model
 
+        AddTrack name ->
+            ( model
+            , Cmd.none
+            , loadAudio name <| songNameToUrl name
+            )
 
-getAudioSummaryIfPlaying : Model -> Cmd Msg
-getAudioSummaryIfPlaying model =
-    case model.playing of
-        Playing song _ ->
-            getAudioSummary { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
 
-        Paused song _ ->
-            getAudioSummary { url = songNameToUrl song, samples = model.width - Theme.sizes.rhythm * 2 }
+totalLength : AudioData -> Model -> Maybe (Quantity Float Duration.Seconds)
+totalLength audioData model =
+    model.tracks
+        |> List.map
+            (\{ source, offset } ->
+                Audio.length audioData source
+                    |> Quantity.plus offset
+            )
+        |> Quantity.maximum
 
-        Stopped ->
-            Cmd.none
+
+loadAudio : String -> String -> AudioCmd Msg
+loadAudio name url =
+    Audio.loadAudio
+        (\result ->
+            LoadedAudio <|
+                Result.map
+                    (\source ->
+                        { name = name
+                        , url = url
+                        , source = source
+                        }
+                    )
+                    result
+        )
+        url
+
+
+getMissingAudioSummaries : Model -> Cmd Msg
+getMissingAudioSummaries model =
+    model.tracks
+        |> List.filterMap
+            (\{ url, summary } ->
+                case summary of
+                    Nothing ->
+                        Just <| getAudioSummary { url = url, samples = model.width - Theme.sizes.rhythm * 2 }
+
+                    Just _ ->
+                        Nothing
+            )
+        |> Cmd.batch
 
 
 songNameToUrl : String -> String
@@ -433,14 +504,9 @@ songNameToUrl name =
 stopOnSongEnd : AudioData -> Model -> Model
 stopOnSongEnd audioData model =
     case model.playing of
-        Playing name from ->
-            case Dict.get name model.loadedTracks of
-                Just source ->
-                    let
-                        duration : Duration
-                        duration =
-                            Audio.length audioData source
-                    in
+        Playing from ->
+            case totalLength audioData model of
+                Just duration ->
                     if
                         Duration.from from model.now
                             |> Quantity.greaterThanOrEqualTo duration
@@ -450,10 +516,10 @@ stopOnSongEnd audioData model =
                     else
                         model
 
-                _ ->
-                    model
+                Nothing ->
+                    { model | playing = Stopped }
 
-        Paused _ _ ->
+        Paused _ ->
             model
 
         Stopped ->
@@ -466,8 +532,8 @@ view audioData model =
         LoadingPlaylist ->
             el [ centerX, centerY ] <| textInvariant "Loading..."
 
-        LoadedPlaylist ->
-            innerView audioData model
+        LoadedPlaylist playlist ->
+            innerView audioData model playlist
 
         LoadingError e ->
             textInvariant <| errorToString e
@@ -486,13 +552,77 @@ errorToString error =
             "Something went badly, try refreshing the page."
 
 
-innerView : AudioData -> Model -> Element Msg
-innerView audioData model =
+innerView : AudioData -> Model -> List String -> Element Msg
+innerView audioData model playlist =
     let
-        length : String -> Maybe Duration
-        length name =
-            Dict.get name model.loadedTracks
-                |> Maybe.map (Audio.length audioData)
+        viewTracks : List (Element Msg)
+        viewTracks =
+            List.concatMap
+                (\{ name, source, summary } ->
+                    [ textInvariant name
+                    , case summary of
+                        Nothing ->
+                            text Translations.loadingWaveform
+
+                        Just raw ->
+                            viewWaveform (Audio.length audioData source) at raw
+                    ]
+                )
+                model.tracks
+
+        ( header, at ) =
+            case model.playing of
+                Stopped ->
+                    ( [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.stopped
+                            , Theme.button []
+                                { onPress = Just Play
+                                , label = text Translations.play
+                                }
+                            ]
+                      , timeTracker audioData model Quantity.zero
+                      ]
+                    , Nothing
+                    )
+
+                Playing from ->
+                    let
+                        at_ : Duration
+                        at_ =
+                            Duration.from from model.now
+                    in
+                    ( [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.playing
+                            , Theme.button []
+                                { onPress = Just PauseResume
+                                , label = text Translations.pause
+                                }
+                            , Theme.button []
+                                { onPress = Just Stop
+                                , label = text Translations.stop
+                                }
+                            ]
+                      , timeTracker audioData model at_
+                      ]
+                    , Just at_
+                    )
+
+                Paused at_ ->
+                    ( [ Theme.row []
+                            [ el [ Font.bold ] <| text Translations.paused
+                            , Theme.button []
+                                { onPress = Just PauseResume
+                                , label = text Translations.resume
+                                }
+                            , Theme.button []
+                                { onPress = Just Stop
+                                , label = text Translations.stop
+                                }
+                            ]
+                      , timeTracker audioData model at_
+                      ]
+                    , Just at_
+                    )
     in
     column [ width fill, height fill ]
         [ menuBar
@@ -501,51 +631,11 @@ innerView audioData model =
             , width fill
             , height fill
             ]
-            [ volumeSlider model.mainVolume
-            , case model.playing of
-                Stopped ->
-                    Element.none
-
-                Playing name from ->
-                    Theme.column [ width fill ]
-                        [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.playing
-                            , Theme.button []
-                                { onPress = Just <| UntimedMsg PauseResume
-                                , label = text Translations.pause
-                                }
-                            ]
-                        , textInvariant name
-                        , timeTracker audioData model name <|
-                            Duration.from from model.now
-                        , case Dict.get (songNameToUrl name) model.rawData of
-                            Nothing ->
-                                text Translations.loadingWaveform
-
-                            Just raw ->
-                                viewWaveform (Duration.from from model.now) (length name) raw
-                        ]
-
-                Paused name at ->
-                    Theme.column []
-                        [ Theme.row []
-                            [ el [ Font.bold ] <| text Translations.paused
-                            , Theme.button []
-                                { onPress = Just <| UntimedMsg PauseResume
-                                , label = text Translations.resume
-                                }
-                            ]
-                        , textInvariant name
-                        , timeTracker audioData model name at
-                        , case Dict.get (songNameToUrl name) model.rawData of
-                            Nothing ->
-                                text Translations.loadingWaveform
-
-                            Just raw ->
-                                viewWaveform at (length name) raw
-                        ]
-            , playButtons model.loadedTracks
-            ]
+            (volumeSlider model.mainVolume
+                :: header
+                ++ viewTracks
+                ++ [ playButtons playlist ]
+            )
         ]
 
 
@@ -557,42 +647,42 @@ viewWaveform length at channels =
         |> Element.map WaveformMsg
 
 
-timeTracker : AudioData -> Model -> String -> Duration -> Element msg
-timeTracker audioData model name duration =
-    case Dict.get name model.loadedTracks of
+timeTracker : AudioData -> Model -> Duration -> Element msg
+timeTracker audioData model at =
+    case totalLength audioData model of
         Nothing ->
             Element.none
 
-        Just source ->
+        Just length ->
             el [ Font.family [ Font.monospace ] ] <|
                 textInvariant <|
-                    durationToString duration
+                    durationToString at
                         ++ " / "
-                        ++ durationToString (Audio.length audioData source)
+                        ++ durationToString length
 
 
-playButtons : Dict String Audio.Source -> Element Msg
+playButtons : List String -> Element Msg
 playButtons =
     Lazy.lazy <|
-        \loadedTracks ->
-            Dict.keys loadedTracks
+        \playlist ->
+            playlist
                 |> List.map
-                    (\t ->
+                    (\name ->
                         Theme.button []
                             { label =
-                                (if String.contains "-" t then
-                                    t
+                                (if String.contains "-" name then
+                                    name
                                         |> String.split "-"
                                         |> List.drop 2
                                         |> String.join "-"
                                         |> String.trim
 
                                  else
-                                    t
+                                    name
                                 )
-                                    |> Translations.play
+                                    |> Translations.add
                                     |> text
-                            , onPress = Just <| UntimedMsg <| Play t
+                            , onPress = Just <| AddTrack name
                             }
                     )
                 |> (::) (el [ Font.bold ] <| text Translations.loaded)
@@ -658,13 +748,14 @@ languagePicker =
                 }
 
 
-subscriptions : AudioData -> Model -> Sub Msg
+subscriptions : AudioData -> Model -> Sub (Timed Msg)
 subscriptions _ _ =
     Sub.batch
-        [ gotAudioSummary GotAudioSummary
-        , Browser.Events.onAnimationFrame Tick
-        , Browser.Events.onResize Resize
+        [ gotAudioSummary (\data -> GotAudioSummary data |> Untimed)
+        , Browser.Events.onAnimationFrame (\now -> Timed Tick now)
+        , Browser.Events.onResize (\w h -> Resize w h |> Untimed)
         , Browser.Events.onKeyPress keypressDecoder
+            |> Sub.map Untimed
         ]
 
 
@@ -675,7 +766,7 @@ keypressDecoder =
             (\key ->
                 case key of
                     " " ->
-                        Json.Decode.succeed (UntimedMsg PauseResume)
+                        Json.Decode.succeed PauseResume
 
                     _ ->
                         Json.Decode.fail "Ignored"

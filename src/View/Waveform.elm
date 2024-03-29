@@ -109,7 +109,7 @@ fragmentShader =
 
 
 view : Duration -> Maybe Duration -> AudioSummary -> List (Html Msg)
-view at length channels =
+view length at channels =
     let
         sampleCount : Int
         sampleCount =
@@ -150,8 +150,8 @@ view at length channels =
                 { u_channel = texture channel
                 , u_sampleCount = sampleCount
                 , u_at =
-                    length
-                        |> Maybe.map (\l -> round <| toFloat sampleCount * Quantity.ratio at l)
+                    at
+                        |> Maybe.map (\l -> round <| toFloat sampleCount * Quantity.ratio length l)
                         |> Maybe.withDefault -1
                 }
             ]
