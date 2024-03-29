@@ -372,36 +372,44 @@ update audioData msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        WaveformMsg (View.Waveform.Click clickedAt) ->
+        WaveformMsg waveformMsg ->
             let
                 getLength : String -> Maybe Duration
                 getLength name =
                     Dict.get name model.loadedTracks
                         |> Maybe.map (Audio.length audioData)
             in
-            pure
-                { model
-                    | playing =
-                        case model.playing of
-                            Playing song _ ->
-                                case getLength song of
-                                    Nothing ->
+            case waveformMsg of
+                View.Waveform.Up clickedAt ->
+                    pure
+                        { model
+                            | playing =
+                                case model.playing of
+                                    Playing song _ ->
+                                        case getLength song of
+                                            Nothing ->
+                                                model.playing
+
+                                            Just length ->
+                                                Playing song (Duration.subtractFrom model.now <| Quantity.multiplyBy clickedAt length)
+
+                                    Stopped ->
                                         model.playing
 
-                                    Just length ->
-                                        Playing song (Duration.subtractFrom model.now <| Quantity.multiplyBy clickedAt length)
+                                    Paused song _ ->
+                                        case getLength song of
+                                            Nothing ->
+                                                model.playing
 
-                            Stopped ->
-                                model.playing
+                                            Just length ->
+                                                Paused song (Quantity.multiplyBy clickedAt length)
+                        }
 
-                            Paused song _ ->
-                                case getLength song of
-                                    Nothing ->
-                                        model.playing
+                View.Waveform.Down _ ->
+                    pure model
 
-                                    Just length ->
-                                        Paused song (Quantity.multiplyBy clickedAt length)
-                }
+                View.Waveform.Move _ ->
+                    pure model
 
 
 getAudioSummaryIfPlaying : Model -> Cmd Msg

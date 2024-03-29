@@ -6,14 +6,16 @@ import Effect.WebGL as WebGL exposing (Mesh, Shader)
 import Effect.WebGL.Texture as Texture exposing (Texture)
 import Html exposing (Html)
 import Html.Attributes
-import Html.Events.Extra.Pointer
+import Html.Events.Extra.Pointer as Pointer
 import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Types exposing (AudioSummary, Point)
 
 
 type Msg
-    = Click Float
+    = Down Float
+    | Move Float
+    | Up Float
 
 
 type alias Vertex =
@@ -159,15 +161,18 @@ view at length channels =
                     , Html.Attributes.height 200
                     , Html.Attributes.style "max-height" "200px"
                     , Html.Attributes.style "display" "block"
-                    , Html.Events.Extra.Pointer.onUp
-                        (\event ->
-                            let
-                                ( offsetX, _ ) =
-                                    event.pointer.offsetPos
-                            in
-                            (offsetX / toFloat sampleCount)
-                                |> Click
-                        )
+                    , Pointer.onDown (toMsg Down sampleCount)
+                    , Pointer.onMove (toMsg Move sampleCount)
+                    , Pointer.onUp (toMsg Up sampleCount)
                     ]
     in
     List.map webgl channels
+
+
+toMsg : (Float -> msg) -> Int -> Pointer.Event -> msg
+toMsg variant sampleCount event =
+    let
+        ( offsetX, _ ) =
+            event.pointer.offsetPos
+    in
+    variant <| offsetX / toFloat sampleCount
