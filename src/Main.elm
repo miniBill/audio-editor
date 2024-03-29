@@ -3,13 +3,14 @@ port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, width)
+import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, px, width)
 import Element.WithContext.Background as Background
 import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
 import Element.WithContext.Lazy as Lazy
 import Float.Extra
 import Html exposing (Html)
+import Html.Attributes
 import Http
 import Json.Decode
 import Json.Encode
@@ -555,20 +556,39 @@ errorToString error =
 innerView : AudioData -> Model -> List String -> Element Msg
 innerView audioData model playlist =
     let
-        viewTracks : List (Element Msg)
+        viewTracks : Element Msg
         viewTracks =
-            List.concatMap
-                (\{ name, source, summary } ->
-                    [ textInvariant name
-                    , case summary of
-                        Nothing ->
-                            text Translations.loadingWaveform
+            Element.table [ Theme.spacing ]
+                { data =
+                    model.tracks
+                , columns =
+                    [ { header = Element.none
+                      , width = px 100
+                      , view =
+                            \{ name } ->
+                                Theme.column [ width fill ]
+                                    [ el
+                                        [ width fill
+                                        , Background.color <| Element.rgb 1 0 0
+                                        , Element.htmlAttribute <| Html.Attributes.style "text-overflow" "ellipsis"
+                                        , Element.htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+                                        ]
+                                        (textInvariant name)
+                                    ]
+                      }
+                    , { header = Element.none
+                      , width = fill
+                      , view =
+                            \{ source, summary } ->
+                                case summary of
+                                    Nothing ->
+                                        text Translations.loadingWaveform
 
-                        Just raw ->
-                            viewWaveform (Audio.length audioData source) at raw
+                                    Just raw ->
+                                        viewWaveform (Audio.length audioData source) at raw
+                      }
                     ]
-                )
-                model.tracks
+                }
 
         ( header, at ) =
             case model.playing of
@@ -617,20 +637,20 @@ innerView audioData model playlist =
             , width fill
             , height fill
             ]
-            (volumeSlider model.mainVolume
-                :: Theme.row [] header
-                :: timeTracker audioData model (Maybe.withDefault Quantity.zero at)
-                :: viewTracks
-                ++ [ addButtons playlist ]
-            )
+            [ volumeSlider model.mainVolume
+            , Theme.row [] header
+            , timeTracker audioData model (Maybe.withDefault Quantity.zero at)
+            , viewTracks
+            , addButtons playlist
+            ]
         ]
 
 
 viewWaveform : Duration -> Maybe Duration -> AudioSummary -> Element Msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
-        |> List.map (Element.html >> el [ width fill ])
-        |> Theme.column [ width fill ]
+        |> List.map Element.html
+        |> column [ width fill ]
         |> Element.map WaveformMsg
 
 

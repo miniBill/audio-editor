@@ -109,11 +109,11 @@ fragmentShader =
 
 
 view : Duration -> Maybe Duration -> AudioSummary -> List (Html Msg)
-view length at channels =
+view length at summary =
     let
         sampleCount : Int
         sampleCount =
-            channels
+            summary
                 |> List.map List.length
                 |> List.minimum
                 |> Maybe.withDefault 0
@@ -169,7 +169,7 @@ view length at channels =
                     , Pointer.onUp (toMsg Up sampleCount)
                     ]
     in
-    List.map webgl channels
+    List.map webgl summary
 
 
 toMsg : (Float -> msg) -> Int -> Pointer.Event -> msg
