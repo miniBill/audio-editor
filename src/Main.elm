@@ -637,11 +637,6 @@ viewTracks audioData model at =
                                         (el
                                             [ centerX
                                             , Events.onClick (RemoveTrack index)
-                                            , Ui.move
-                                                { x = 0
-                                                , y = -6
-                                                , z = 0
-                                                }
                                             ]
                                             (textInvariant "X")
                                         )
