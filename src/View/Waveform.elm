@@ -28,6 +28,8 @@ type alias Uniforms =
     { u_channel : Texture
     , u_sampleCount : Int
     , u_at : Int
+    , u_duration : Float
+    , u_offset : Float
     }
 
 
@@ -91,14 +93,19 @@ fragmentShader =
         varying vec2 v_position;
         uniform sampler2D u_channel;
         uniform int u_at;
+        uniform float u_offset;
+        uniform float u_duration;
         uniform int u_sampleCount;
 
         void main () {
-            float normalized_x = v_position.x / 2. + 0.5;
+            float normalized_x = (v_position.x / 2. + 0.5 - u_offset) / u_duration;
             vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
             int pixel_x = int(gl_FragCoord.x - 0.5);
             if (pixel_x == u_at) {
                 gl_FragColor = vec4(1., 0., 0., 1.);
+            } else if (normalized_x < 0. || normalized_x > 1.) {
+                // gl_FragColor = vec4(1., 1., 1., 1.);
+                discard;
             } else if (v_position.y < -point.x || v_position.y > point.z) {
                 gl_FragColor = vec4(0.753, 0.753, 0.753, 1.);
             } else if (abs(v_position.y) > point.y) {
@@ -164,9 +171,9 @@ view config track =
                         mesh
                         { u_channel = texture channel
                         , u_sampleCount = sampleCount
-
-                        -- , u_offset = Duration.inSeconds track.offset
                         , u_at = round <| toFloat width * Quantity.ratio config.at totalLength
+                        , u_offset = Quantity.ratio track.offset totalLength
+                        , u_duration = Quantity.ratio track.duration totalLength
                         }
                     ]
                         |> WebGL.toHtml

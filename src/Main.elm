@@ -10,6 +10,7 @@ import Json.Decode
 import Json.Encode
 import List.Extra
 import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, px, shrink, width)
+import MyUi.Events as Events
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
 import MyUi.Lazy as Lazy
@@ -88,6 +89,7 @@ type Msg
     | Play
     | PauseResume
     | Stop
+    | RemoveTrack String
 
 
 type Timed msg
@@ -425,6 +427,9 @@ update audioData now msg ({ context } as model) =
             , loadAudio name <| songNameToUrl name
             )
 
+        RemoveTrack name ->
+            pure { model | tracks = List.Extra.removeWhen (\track -> track.name == name) model.tracks }
+
 
 totalLength : AudioData -> Model -> Maybe (Quantity Float Duration.Seconds)
 totalLength audioData model =
@@ -554,12 +559,30 @@ innerView audioData model playlist =
                             \{ name } ->
                                 Table.cell [ padding 0 ] <|
                                     Theme.column []
-                                        [ el
-                                            [ Ui.clipWithEllipsis
-                                            , width (px infoboxWidth)
-                                            , Theme.titleInvariant name
+                                        [ Ui.row [ Ui.spacing 2 ]
+                                            [ el
+                                                [ width <| px 20
+                                                , height <| px 20
+                                                , Ui.border 1
+                                                ]
+                                                (el
+                                                    [ centerX
+                                                    , Events.onClick (RemoveTrack name)
+                                                    , Ui.moveUp
+                                                        { x = 0
+                                                        , y = -6
+                                                        , z = 0
+                                                        }
+                                                    ]
+                                                    (textInvariant "X")
+                                                )
+                                            , el
+                                                [ Ui.clipWithEllipsis
+                                                , width <| px <| infoboxWidth - 22
+                                                , Theme.titleInvariant name
+                                                ]
+                                                (textInvariant name)
                                             ]
-                                            (textInvariant name)
                                         ]
                         }
                         |> Table.withWidth
