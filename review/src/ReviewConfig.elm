@@ -20,6 +20,7 @@ import NoImportingEverything
 import NoMissingTypeAnnotation
 import NoMissingTypeAnnotationInLetIn
 import NoMissingTypeExpose
+import NoModuleOnExposedNames
 import NoPrematureLetComputation
 import NoSimpleLetBody
 import NoUnused.CustomTypeConstructorArgs
@@ -55,5 +56,6 @@ config =
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
+    , NoModuleOnExposedNames.rule
     ]
         |> List.map (Rule.ignoreErrorsForFiles [ "src/Translations.elm" ])
