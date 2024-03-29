@@ -4,18 +4,20 @@ import Bytes.Encode
 import Duration exposing (Duration)
 import Effect.WebGL as WebGL exposing (Mesh, Shader)
 import Effect.WebGL.Texture as Texture exposing (Texture)
-import Html exposing (Html)
 import Html.Attributes
 import Html.Events.Extra.Pointer as Pointer
 import Math.Vector2 exposing (Vec2, vec2)
+import MyUi as Ui exposing (Element, centerX, centerY, el)
 import Quantity
-import Types exposing (AudioSummary, Point)
+import Theme
+import Translations
+import Types exposing (Point, Track)
 
 
 type Msg
-    = Down Float
-    | Move Float
-    | Up Float
+    = Down Duration
+    | Move Duration
+    | Up Duration
 
 
 type alias Vertex =
@@ -108,74 +110,85 @@ fragmentShader =
     |]
 
 
-view : Duration -> Maybe Duration -> AudioSummary -> List (Html Msg)
-view length at summary =
-    let
-        sampleCount : Int
-        sampleCount =
-            summary
-                |> List.map List.length
-                |> List.minimum
-                |> Maybe.withDefault 0
+view : { at : Duration, totalLength : Maybe Duration } -> Track -> Element Msg
+view config track =
+    case track.summary of
+        Nothing ->
+            el [ centerX, centerY ] <| Theme.text Translations.loadingWaveform
 
-        texture : List Point -> Texture
-        texture channel =
-            channel
-                |> List.concatMap
-                    (\( min, rms, max ) ->
-                        [ Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 -min
-                        , Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 rms
-                        , Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 max
-                        ]
-                    )
-                |> Bytes.Encode.sequence
-                |> Bytes.Encode.encode
-                |> Texture.loadBytesWith
-                    { magnify = Texture.linear
-                    , minify = Texture.linear
-                    , horizontalWrap = Texture.clampToEdge
-                    , verticalWrap = Texture.clampToEdge
-                    , flipY = False
-                    , premultiplyAlpha = False
-                    }
-                    ( sampleCount, 1 )
-                    Texture.rgb
-                |> unsafeUnwrapResult
+        Just summary ->
+            let
+                totalLength : Duration
+                totalLength =
+                    Maybe.withDefault track.duration config.totalLength
 
-        webgl : List Point -> Html Msg
-        webgl channel =
-            [ WebGL.entity vertexShader
-                fragmentShader
-                mesh
-                { u_channel = texture channel
-                , u_sampleCount = sampleCount
-                , u_at =
-                    case at of
-                        Just at_ ->
-                            round <| toFloat sampleCount * Quantity.ratio at_ length
+                sampleCount : Int
+                sampleCount =
+                    summary
+                        |> List.map List.length
+                        |> List.minimum
+                        |> Maybe.withDefault 0
 
-                        Nothing ->
-                            -1
-                }
-            ]
-                |> WebGL.toHtml
-                    [ Html.Attributes.width sampleCount
-                    , Html.Attributes.style "width" "100%"
-                    , Html.Attributes.height 200
-                    , Html.Attributes.style "max-height" "200px"
-                    , Html.Attributes.style "display" "block"
-                    , Pointer.onDown (toMsg Down sampleCount)
-                    , Pointer.onMove (toMsg Move sampleCount)
-                    , Pointer.onUp (toMsg Up sampleCount)
+                width : Int
+                width =
+                    sampleCount
+
+                texture : List Point -> Texture
+                texture channel =
+                    channel
+                        |> List.concatMap
+                            (\( min, rms, max ) ->
+                                [ Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 -min
+                                , Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 rms
+                                , Bytes.Encode.unsignedInt8 <| round <| 255 * clamp 0 1 max
+                                ]
+                            )
+                        |> Bytes.Encode.sequence
+                        |> Bytes.Encode.encode
+                        |> Texture.loadBytesWith
+                            { magnify = Texture.linear
+                            , minify = Texture.linear
+                            , horizontalWrap = Texture.clampToEdge
+                            , verticalWrap = Texture.clampToEdge
+                            , flipY = False
+                            , premultiplyAlpha = False
+                            }
+                            ( sampleCount, 1 )
+                            Texture.rgb
+                        |> unsafeUnwrapResult
+
+                webgl : List Point -> Element Msg
+                webgl channel =
+                    [ WebGL.entity vertexShader
+                        fragmentShader
+                        mesh
+                        { u_channel = texture channel
+                        , u_sampleCount = sampleCount
+
+                        -- , u_offset = Duration.inSeconds track.offset
+                        , u_at = round <| toFloat width * Quantity.ratio config.at totalLength
+                        }
                     ]
-    in
-    List.map webgl summary
+                        |> WebGL.toHtml
+                            [ Html.Attributes.width width
+                            , Html.Attributes.style "width" "100%"
+                            , Html.Attributes.height 200
+                            , Html.Attributes.style "max-height" "200px"
+                            , Html.Attributes.style "display" "block"
+                            , Pointer.onDown (toMsg Down width totalLength)
+                            , Pointer.onMove (toMsg Move width totalLength)
+                            , Pointer.onUp (toMsg Up width totalLength)
+                            ]
+                        |> Ui.html
+            in
+            List.map webgl summary
+                |> Ui.column []
 
 
-toMsg : (Float -> msg) -> Int -> Pointer.Event -> msg
-toMsg variant sampleCount event =
+toMsg : (Duration -> msg) -> Int -> Duration -> Pointer.Event -> msg
+toMsg variant width length event =
     let
         ( offsetX, _ ) =
             event.pointer.offsetPos
     in
-    variant <| offsetX / toFloat sampleCount
+    variant <| Quantity.multiplyBy (offsetX / toFloat width) length

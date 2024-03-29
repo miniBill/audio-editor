@@ -1,4 +1,4 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, Track, main)
+port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
@@ -20,7 +20,7 @@ import Task
 import Theme exposing (text, textInvariant)
 import Time
 import Translations
-import Types exposing (AudioSummary, Context)
+import Types exposing (AudioSummary, Context, Track)
 import Ui as VanillaUi
 import Ui.Font
 import Url.Builder
@@ -62,18 +62,8 @@ type alias Model =
     }
 
 
-type alias Track =
-    { name : String
-    , url : String
-    , source : Audio.Source
-    , summary : Maybe AudioSummary
-    , offset : Duration
-    }
-
-
 type PlayingStatus
-    = Stopped
-    | Playing Time.Posix
+    = Playing Time.Posix
     | Paused Duration
 
 
@@ -201,9 +191,6 @@ audio _ model =
         Paused _ ->
             Audio.silence
 
-        Stopped ->
-            Audio.silence
-
 
 init : Flags -> ( Maybe Model, Cmd Msg, AudioCmd Msg )
 init flags =
@@ -224,7 +211,7 @@ init flags =
                 { context = { i18n = i18n }
                 , inner = LoadingPlaylist
                 , tracks = []
-                , playing = Stopped
+                , playing = Paused Quantity.zero
                 , mainVolume = 0.5
                 , now = Time.millisToPosix flags.now
                 , sampleRate = flags.sampleRate
@@ -321,13 +308,10 @@ update audioData now msg ({ context } as model) =
 
                             Paused duration ->
                                 Playing <| Duration.subtractFrom now duration
-
-                            Stopped ->
-                                model.playing
                 }
 
         Stop ->
-            pure { model | playing = Stopped }
+            pure { model | playing = Paused Quantity.zero }
 
         LoadedAudio (Err e) ->
             let
@@ -345,6 +329,7 @@ update audioData now msg ({ context } as model) =
                     , source = source
                     , summary = Nothing
                     , offset = Quantity.zero
+                    , duration = Audio.length audioData source
                     }
 
                 newModel : Model
@@ -416,29 +401,16 @@ update audioData now msg ({ context } as model) =
 
         WaveformMsg waveformMsg ->
             case waveformMsg of
-                View.Waveform.Up clickedAt ->
+                View.Waveform.Up at ->
                     pure
                         { model
                             | playing =
-                                totalLength audioData model
-                                    |> Maybe.map
-                                        (\length ->
-                                            let
-                                                at : Duration
-                                                at =
-                                                    Quantity.multiplyBy clickedAt length
-                                            in
-                                            case model.playing of
-                                                Playing _ ->
-                                                    Playing (Duration.subtractFrom model.now at)
+                                case model.playing of
+                                    Playing _ ->
+                                        Playing (Duration.subtractFrom model.now at)
 
-                                                Paused _ ->
-                                                    Paused at
-
-                                                Stopped ->
-                                                    model.playing
-                                        )
-                                    |> Maybe.withDefault model.playing
+                                    Paused _ ->
+                                        Paused at
                         }
 
                 View.Waveform.Down _ ->
@@ -512,18 +484,15 @@ stopOnSongEnd audioData model =
                         Duration.from from model.now
                             |> Quantity.greaterThanOrEqualTo duration
                     then
-                        { model | playing = Stopped }
+                        { model | playing = Paused Quantity.zero }
 
                     else
                         model
 
                 Nothing ->
-                    { model | playing = Stopped }
+                    { model | playing = Paused Quantity.zero }
 
         Paused _ ->
-            model
-
-        Stopped ->
             model
 
 
@@ -556,12 +525,21 @@ errorToString error =
 innerView : AudioData -> Model -> List String -> Element Msg
 innerView audioData model playlist =
     let
+        waveformConfig :
+            { totalLength : Maybe Duration
+            , at : Duration
+            }
+        waveformConfig =
+            { totalLength = totalLength audioData model
+            , at = at
+            }
+
         viewTracks : Element Msg
         viewTracks =
             Table.view [ Theme.spacing, padding 0 ]
                 (Table.columns
                     [ Table.column
-                        { header = { attrs = [ padding 0 ], child = Ui.none }
+                        { header = Table.cell [ padding 0 ] Ui.none
                         , view =
                             \{ name } ->
                                 Table.cell [ padding 0 ] <|
@@ -576,18 +554,12 @@ innerView audioData model playlist =
                         }
                         |> Table.withWidth { fill = False, min = Nothing, max = Nothing }
                     , Table.column
-                        { header = { attrs = [ padding 0 ], child = Ui.none }
+                        { header = Table.cell [ padding 0 ] Ui.none
                         , view =
-                            \{ source, summary } ->
-                                { attrs = [ padding 0 ]
-                                , child =
-                                    case summary of
-                                        Nothing ->
-                                            text Translations.loadingWaveform
-
-                                        Just raw ->
-                                            viewWaveform (Audio.length audioData source) at raw
-                                }
+                            \track ->
+                                Table.cell [ padding 0 ] <|
+                                    Ui.map WaveformMsg <|
+                                        View.Waveform.view waveformConfig track
                         }
                         |> Table.withWidth { fill = True, min = Nothing, max = Nothing }
                     ]
@@ -596,16 +568,6 @@ innerView audioData model playlist =
 
         ( header, at ) =
             case model.playing of
-                Stopped ->
-                    ( [ el [ Font.weight Font.bold ] <| text Translations.stopped
-                      , Theme.button []
-                            { onPress = Just Play
-                            , label = text Translations.play
-                            }
-                      ]
-                    , Nothing
-                    )
-
                 Playing from ->
                     ( [ el [ Font.weight Font.bold ] <| text Translations.playing
                       , Theme.button []
@@ -617,21 +579,30 @@ innerView audioData model playlist =
                             , label = text Translations.stop
                             }
                       ]
-                    , Just (Duration.from from model.now)
+                    , Duration.from from model.now
                     )
 
                 Paused at_ ->
-                    ( [ el [ Font.weight Font.bold ] <| text Translations.paused
-                      , Theme.button []
+                    ( if at_ == Quantity.zero then
+                        [ el [ Font.weight Font.bold ] <| text Translations.stopped
+                        , Theme.button []
+                            { onPress = Just Play
+                            , label = text Translations.play
+                            }
+                        ]
+
+                      else
+                        [ el [ Font.weight Font.bold ] <| text Translations.paused
+                        , Theme.button []
                             { onPress = Just PauseResume
                             , label = text Translations.resume
                             }
-                      , Theme.button []
+                        , Theme.button []
                             { onPress = Just Stop
                             , label = text Translations.stop
                             }
-                      ]
-                    , Just at_
+                        ]
+                    , at_
                     )
     in
     column [ height fill ]
@@ -642,19 +613,11 @@ innerView audioData model playlist =
             ]
             [ volumeSlider model.mainVolume
             , Theme.row [ width shrink ] header
-            , timeTracker audioData model (Maybe.withDefault Quantity.zero at)
+            , timeTracker audioData model at
             , viewTracks
             , addButtons playlist
             ]
         ]
-
-
-viewWaveform : Duration -> Maybe Duration -> AudioSummary -> Element Msg
-viewWaveform length at channels =
-    View.Waveform.view length at channels
-        |> List.map Ui.html
-        |> column []
-        |> Ui.map WaveformMsg
 
 
 timeTracker : AudioData -> Model -> Duration -> Element msg
