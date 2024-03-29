@@ -58,4 +58,7 @@ config =
     , Simplify.rule Simplify.defaults
     , NoModuleOnExposedNames.rule
     ]
-        |> List.map (Rule.ignoreErrorsForFiles [ "src/Translations.elm" ])
+        |> List.map
+            (Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
+                >> Rule.ignoreErrorsForDirectories [ "vendored" ]
+            )
