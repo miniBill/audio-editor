@@ -1,6 +1,7 @@
-module Theme exposing (Attribute, Context, Element, button, colors, column, fontSizes, padding, row, sizes, spacing, text, textInvariant, wrappedRow)
+module Theme exposing (Attribute, Context, Element, button, colors, column, fontSizes, horizontalSlider, padding, row, sizes, spacing, text, textInvariant, wrappedRow)
 
-import Element.WithContext as Element exposing (Color, rgb, rgba)
+import Element.WithContext as Element exposing (Color, fill, height, px, rgb, rgba, width)
+import Element.WithContext.Background as Background
 import Element.WithContext.Border as Border
 import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
@@ -17,6 +18,10 @@ type alias Element msg =
 
 type alias Attribute msg =
     Element.Attribute Context msg
+
+
+type alias Label msg =
+    Input.Label Context msg
 
 
 fontSizes :
@@ -98,3 +103,41 @@ text f =
 textInvariant : String -> Element msg
 textInvariant =
     Element.text
+
+
+horizontalSlider :
+    List (Attribute msg)
+    ->
+        { onChange : Float -> msg
+        , label : Label msg
+        , min : Float
+        , max : Float
+        , step : Maybe Float
+        , value : Float
+        }
+    -> Element msg
+horizontalSlider attrs config =
+    Input.slider
+        ([ height <| px 30
+         , width fill
+         , Element.behindContent
+            (Element.el
+                [ width fill
+                , height <| px 2
+                , Element.centerY
+                , Background.color colors.gray
+                , Border.rounded 2
+                ]
+                Element.none
+            )
+         ]
+            ++ attrs
+        )
+        { onChange = config.onChange
+        , label = config.label
+        , min = config.min
+        , max = config.max
+        , step = config.step
+        , value = config.value
+        , thumb = Input.defaultThumb
+        }

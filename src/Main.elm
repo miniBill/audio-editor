@@ -4,9 +4,8 @@ import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
 import Dict exposing (Dict)
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, px, width)
+import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, width)
 import Element.WithContext.Background as Background
-import Element.WithContext.Border as Border
 import Element.WithContext.Font as Font
 import Element.WithContext.Input as Input
 import Element.WithContext.Lazy as Lazy
@@ -463,9 +462,7 @@ view audioData model =
             innerView audioData model
 
         LoadingError e ->
-            column []
-                [ textInvariant <| errorToString e
-                ]
+            textInvariant <| errorToString e
 
 
 errorToString : Http.Error -> String
@@ -598,29 +595,13 @@ volumeSlider : Float -> Element Msg
 volumeSlider =
     Lazy.lazy <|
         \mainVolume ->
-            Input.slider
-                [ height (px 30)
-                , width fill
-
-                -- Here is where we're creating/styling the "track"
-                , Element.behindContent
-                    (Element.el
-                        [ Element.width Element.fill
-                        , Element.height (Element.px 2)
-                        , Element.centerY
-                        , Background.color Theme.colors.gray
-                        , Border.rounded 2
-                        ]
-                        Element.none
-                    )
-                ]
+            Theme.horizontalSlider []
                 { onChange = Volume
                 , label = Input.labelAbove [ Font.bold ] (text Translations.mainVolume)
                 , min = 0
                 , max = 1
                 , step = Nothing
                 , value = mainVolume
-                , thumb = Input.defaultThumb
                 }
 
 
