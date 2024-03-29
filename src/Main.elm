@@ -9,7 +9,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
-import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, px, shrink, width)
+import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, px, shrink, spacing, width)
 import MyUi.Events as Events
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
@@ -394,10 +394,13 @@ update audioData now msg ({ context } as model) =
             let
                 newModel : Model
                 newModel =
-                    { model | width = width, height = height }
+                    { model
+                        | width = width
+                        , height = height
+                    }
             in
             ( newModel
-            , getMissingAudioSummaries newModel
+            , getMissingAudioSummaries { newModel | tracks = List.map (\track -> { track | summary = Nothing }) model.tracks }
             , Audio.cmdNone
             )
 
@@ -529,7 +532,7 @@ errorToString error =
 
 waveviewWidth : Model -> Int
 waveviewWidth model =
-    model.width - Theme.sizes.rhythm * 3 - infoboxWidth
+    model.width - Theme.sizes.rhythm * 3 - infoboxWidth - 10
 
 
 infoboxWidth : Int
@@ -540,69 +543,6 @@ infoboxWidth =
 innerView : AudioData -> Model -> List String -> Element Msg
 innerView audioData model playlist =
     let
-        waveformConfig :
-            { totalLength : Maybe Duration
-            , at : Duration
-            }
-        waveformConfig =
-            { totalLength = totalLength audioData model
-            , at = at
-            }
-
-        viewTracks : Element Msg
-        viewTracks =
-            Table.view [ Theme.spacing, padding 0 ]
-                (Table.columns
-                    [ Table.column
-                        { header = Table.cell [ padding 0 ] Ui.none
-                        , view =
-                            \{ name } ->
-                                Table.cell [ padding 0 ] <|
-                                    Theme.column []
-                                        [ Ui.row [ Ui.spacing 2 ]
-                                            [ el
-                                                [ width <| px 20
-                                                , height <| px 20
-                                                , Ui.border 1
-                                                ]
-                                                (el
-                                                    [ centerX
-                                                    , Events.onClick (RemoveTrack name)
-                                                    , Ui.moveUp
-                                                        { x = 0
-                                                        , y = -6
-                                                        , z = 0
-                                                        }
-                                                    ]
-                                                    (textInvariant "X")
-                                                )
-                                            , el
-                                                [ Ui.clipWithEllipsis
-                                                , width <| px <| infoboxWidth - 22
-                                                , Theme.titleInvariant name
-                                                ]
-                                                (textInvariant name)
-                                            ]
-                                        ]
-                        }
-                        |> Table.withWidth
-                            { fill = False
-                            , min = Just infoboxWidth
-                            , max = Just infoboxWidth
-                            }
-                    , Table.column
-                        { header = Table.cell [ padding 0 ] Ui.none
-                        , view =
-                            \track ->
-                                Table.cell [ padding 0 ] <|
-                                    Ui.map WaveformMsg <|
-                                        View.Waveform.view waveformConfig track
-                        }
-                        |> Table.withWidth { fill = True, min = Nothing, max = Nothing }
-                    ]
-                )
-                model.tracks
-
         ( header, at ) =
             case model.playing of
                 Playing from ->
@@ -644,17 +584,87 @@ innerView audioData model playlist =
     in
     column [ height fill ]
         [ menuBar
-        , Theme.column
-            [ Theme.padding
-            , height fill
-            ]
-            [ volumeSlider model.mainVolume
-            , Theme.row [ width shrink ] header
-            , timeTracker audioData model at
-            , viewTracks
-            , addButtons playlist
-            ]
+        , Ui.scrollable [ height fill ] <|
+            Theme.column
+                [ Theme.padding
+                , height fill
+                ]
+                [ volumeSlider model.mainVolume
+                , Theme.row [ width shrink ] header
+                , timeTracker audioData model at
+                , viewTracks audioData model at
+                , addButtons playlist
+                ]
         ]
+
+
+viewTracks : AudioData -> Model -> Duration -> Element Msg
+viewTracks audioData model at =
+    let
+        waveformConfig :
+            { totalLength : Maybe Duration
+            , at : Duration
+            }
+        waveformConfig =
+            { totalLength = totalLength audioData model
+            , at = at
+            }
+    in
+    Table.view [ spacing 0, padding 0 ]
+        (Table.columns
+            [ Table.column
+                { header = Table.cell [ padding 0 ] Ui.none
+                , view =
+                    \{ name } ->
+                        Table.cell [ padding 0, width <| px infoboxWidth ] <|
+                            Theme.column []
+                                [ Ui.row [ spacing 2 ]
+                                    [ el
+                                        [ width <| px 20
+                                        , height <| px 20
+                                        , Ui.border 1
+                                        ]
+                                        (el
+                                            [ centerX
+                                            , Events.onClick (RemoveTrack name)
+                                            , Ui.moveUp
+                                                { x = 0
+                                                , y = -6
+                                                , z = 0
+                                                }
+                                            ]
+                                            (textInvariant "X")
+                                        )
+                                    , el
+                                        [ Ui.clipWithEllipsis
+                                        , width <| px <| infoboxWidth - 22
+                                        , Theme.titleInvariant name
+                                        ]
+                                        (textInvariant name)
+                                    ]
+                                , Ui.row []
+                                    [ Theme.button []
+                                        { onPress = Nothing
+                                        , label = text Translations.mute
+                                        }
+                                    , Theme.button []
+                                        { onPress = Nothing
+                                        , label = text Translations.solo
+                                        }
+                                    ]
+                                ]
+                }
+            , Table.column
+                { header = Table.cell [ padding 0 ] Ui.none
+                , view =
+                    \track ->
+                        Table.cell [ padding 0, width <| px <| waveviewWidth model ] <|
+                            Ui.map WaveformMsg <|
+                                View.Waveform.view waveformConfig track
+                }
+            ]
+        )
+        model.tracks
 
 
 timeTracker : AudioData -> Model -> Duration -> Element msg

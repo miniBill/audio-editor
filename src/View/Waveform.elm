@@ -178,9 +178,9 @@ view config track =
                     ]
                         |> WebGL.toHtml
                             [ Html.Attributes.width width
-                            , Html.Attributes.style "width" "100%"
+                            , Html.Attributes.style "width" <| String.fromInt width ++ "px"
                             , Html.Attributes.height 160
-                            , Html.Attributes.style "max-height" "160px"
+                            , Html.Attributes.style "height" "160px"
                             , Html.Attributes.style "display" "block"
                             , Pointer.onDown (toMsg Down width totalLength)
                             , Pointer.onMove (toMsg Move width totalLength)
@@ -189,7 +189,7 @@ view config track =
                         |> Ui.html
             in
             List.map webgl summary
-                |> Ui.column []
+                |> Ui.column [ Ui.width Ui.shrink ]
 
 
 toMsg : (Duration -> msg) -> Int -> Duration -> Pointer.Event -> msg

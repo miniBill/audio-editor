@@ -8,4 +8,6 @@ resume = Resume
 stopped = Stopped
 stop = Stop
 mainVolume = Main volume
-loadingWaveform = Loading waveform
+loadingWaveform = Loading file
+mute = Mute
+solo = Solo

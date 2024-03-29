@@ -1,4 +1,4 @@
-module MyUi exposing (Attribute, Color, Element, Length, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, moveUp, noAttr, none, padding, px, rounded, row, shrink, spacing, text, title, width, withContext, wrap)
+module MyUi exposing (Attribute, Color, Element, Length, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, moveUp, noAttr, none, padding, px, rounded, row, scrollable, shrink, spacing, text, title, width, withContext, wrap)
 
 import Html
 import Html.Attributes
@@ -55,6 +55,11 @@ row attrs children =
 column : List (Attribute msg) -> List (Element msg) -> Element msg
 column attrs children =
     container Ui.column attrs children
+
+
+scrollable : List (Attribute msg) -> Element msg -> Element msg
+scrollable attrs child =
+    singleContainer Ui.scrollable attrs child
 
 
 el : List (Attribute msg) -> Element msg -> Element msg
