@@ -1,4 +1,4 @@
-module MyUi exposing (Attribute, Color, Element, Length, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, moveUp, noAttr, none, padding, px, rounded, row, scrollable, shrink, spacing, text, title, width, withContext, wrap)
+module MyUi exposing (Attribute, Color, Element, Length, Position, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, move, noAttr, none, padding, px, rounded, row, scrollable, shrink, spacing, text, title, width, withContext, wrap)
 
 import Html
 import Html.Attributes
@@ -147,8 +147,8 @@ centerY =
     attribute Ui.centerY
 
 
-moveUp : Position -> MyUi.Internal.Attribute msg
-moveUp value =
+move : Position -> Attribute msg
+move value =
     attribute (Ui.move value)
 
 

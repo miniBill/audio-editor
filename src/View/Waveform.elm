@@ -30,6 +30,7 @@ type alias Uniforms =
     , u_at : Int
     , u_duration : Float
     , u_offset : Float
+    , u_mute : Int
     }
 
 
@@ -96,6 +97,7 @@ fragmentShader =
         uniform float u_offset;
         uniform float u_duration;
         uniform int u_sampleCount;
+        uniform int u_mute;
 
         void main () {
             float normalized_x = (v_position.x / 2. + 0.5 - u_offset) / u_duration;
@@ -108,6 +110,8 @@ fragmentShader =
                 discard;
             } else if (v_position.y < -point.x || v_position.y > point.z) {
                 gl_FragColor = vec4(0.753, 0.753, 0.753, 1.);
+            } else if (u_mute == 1) {
+                gl_FragColor = vec4(0.533, 0.533, 0.565, 1.);
             } else if (abs(v_position.y) > point.y) {
                 gl_FragColor = vec4(0.196, 0.196, 0.784, 1.);
             } else {
@@ -174,6 +178,12 @@ view config track =
                         , u_at = round <| toFloat width * Quantity.ratio config.at totalLength
                         , u_offset = Quantity.ratio track.offset totalLength
                         , u_duration = Quantity.ratio track.duration totalLength
+                        , u_mute =
+                            if track.mute && not track.solo then
+                                1
+
+                            else
+                                0
                         }
                     ]
                         |> WebGL.toHtml

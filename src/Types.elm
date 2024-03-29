@@ -24,4 +24,6 @@ type alias Track =
     , summary : Maybe AudioSummary
     , offset : Duration
     , duration : Duration
+    , mute : Bool
+    , solo : Bool
     }

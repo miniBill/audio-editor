@@ -12,7 +12,7 @@ fontSizes :
     { normal : Attribute msg
     }
 fontSizes =
-    { normal = Font.size 20
+    { normal = Font.size 14
     }
 
 

@@ -89,7 +89,9 @@ type Msg
     | Play
     | PauseResume
     | Stop
-    | RemoveTrack String
+    | RemoveTrack Int
+    | MuteTrack Int
+    | SoloTrack Int
 
 
 type Timed msg
@@ -332,6 +334,8 @@ update audioData now msg ({ context } as model) =
                     , summary = Nothing
                     , offset = Quantity.zero
                     , duration = Audio.length audioData source
+                    , mute = False
+                    , solo = False
                     }
 
                 newModel : Model
@@ -430,8 +434,14 @@ update audioData now msg ({ context } as model) =
             , loadAudio name <| songNameToUrl name
             )
 
-        RemoveTrack name ->
-            pure { model | tracks = List.Extra.removeWhen (\track -> track.name == name) model.tracks }
+        RemoveTrack index ->
+            pure { model | tracks = List.Extra.removeAt index model.tracks }
+
+        MuteTrack index ->
+            pure { model | tracks = List.Extra.updateAt index (\track -> { track | mute = not track.mute }) model.tracks }
+
+        SoloTrack index ->
+            pure { model | tracks = List.Extra.updateAt index (\track -> { track | solo = not track.solo }) model.tracks }
 
 
 totalLength : AudioData -> Model -> Maybe (Quantity Float Duration.Seconds)
@@ -615,7 +625,7 @@ viewTracks audioData model at =
             [ Table.column
                 { header = Table.cell [ padding 0 ] Ui.none
                 , view =
-                    \{ name } ->
+                    \( index, { name } ) ->
                         Table.cell [ padding 0, width <| px infoboxWidth ] <|
                             Theme.column []
                                 [ Ui.row [ spacing 2 ]
@@ -626,8 +636,8 @@ viewTracks audioData model at =
                                         ]
                                         (el
                                             [ centerX
-                                            , Events.onClick (RemoveTrack name)
-                                            , Ui.moveUp
+                                            , Events.onClick (RemoveTrack index)
+                                            , Ui.move
                                                 { x = 0
                                                 , y = -6
                                                 , z = 0
@@ -644,11 +654,11 @@ viewTracks audioData model at =
                                     ]
                                 , Ui.row []
                                     [ Theme.button []
-                                        { onPress = Nothing
+                                        { onPress = Just <| MuteTrack index
                                         , label = text Translations.mute
                                         }
                                     , Theme.button []
-                                        { onPress = Nothing
+                                        { onPress = Just <| SoloTrack index
                                         , label = text Translations.solo
                                         }
                                     ]
@@ -657,14 +667,14 @@ viewTracks audioData model at =
             , Table.column
                 { header = Table.cell [ padding 0 ] Ui.none
                 , view =
-                    \track ->
+                    \( _, track ) ->
                         Table.cell [ padding 0, width <| px <| waveviewWidth model ] <|
                             Ui.map WaveformMsg <|
                                 View.Waveform.view waveformConfig track
                 }
             ]
         )
-        model.tracks
+        (List.indexedMap Tuple.pair model.tracks)
 
 
 timeTracker : AudioData -> Model -> Duration -> Element msg
