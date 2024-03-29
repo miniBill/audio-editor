@@ -38,7 +38,6 @@ config : List Rule
 config =
     [ Docs.ReviewAtDocs.rule
     , NoConfusingPrefixOperator.rule
-    , NoDebug.Log.rule
     , NoDebug.TodoOrToString.rule
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoExposingEverything.rule

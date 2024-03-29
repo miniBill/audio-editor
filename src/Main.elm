@@ -461,7 +461,7 @@ getMissingAudioSummaries model =
             (\{ url, summary } ->
                 case summary of
                     Nothing ->
-                        Just <| getAudioSummary { url = url, samples = model.width - Theme.sizes.rhythm * 2 }
+                        Just <| getAudioSummary { url = url, samples = waveviewWidth model }
 
                     Just _ ->
                         Nothing
@@ -522,6 +522,16 @@ errorToString error =
             "Something went badly, try refreshing the page."
 
 
+waveviewWidth : Model -> Int
+waveviewWidth model =
+    model.width - Theme.sizes.rhythm * 3 - infoboxWidth
+
+
+infoboxWidth : Int
+infoboxWidth =
+    120
+
+
 innerView : AudioData -> Model -> List String -> Element Msg
 innerView audioData model playlist =
     let
@@ -546,13 +556,17 @@ innerView audioData model playlist =
                                     Theme.column []
                                         [ el
                                             [ Ui.clipWithEllipsis
-                                            , width (px 120) -- Without this the column gets large
+                                            , width (px infoboxWidth)
                                             , Theme.titleInvariant name
                                             ]
                                             (textInvariant name)
                                         ]
                         }
-                        |> Table.withWidth { fill = False, min = Nothing, max = Nothing }
+                        |> Table.withWidth
+                            { fill = False
+                            , min = Just infoboxWidth
+                            , max = Just infoboxWidth
+                            }
                     , Table.column
                         { header = Table.cell [ padding 0 ] Ui.none
                         , view =
