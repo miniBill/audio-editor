@@ -172,8 +172,8 @@ view config track =
                         |> WebGL.toHtml
                             [ Html.Attributes.width width
                             , Html.Attributes.style "width" "100%"
-                            , Html.Attributes.height 200
-                            , Html.Attributes.style "max-height" "200px"
+                            , Html.Attributes.height 160
+                            , Html.Attributes.style "max-height" "160px"
                             , Html.Attributes.style "display" "block"
                             , Pointer.onDown (toMsg Down width totalLength)
                             , Pointer.onMove (toMsg Move width totalLength)
