@@ -1,4 +1,4 @@
-module Theme exposing (button, colors, column, fontSizes, padding, row, sizes, sliderHorizontal, spacing, text, textInvariant, titleInvariant)
+module Theme exposing (button, colors, column, fontSizes, padding, rhythm, row, sliderHorizontal, spacing, text, textInvariant, titleInvariant, toggleButton)
 
 import Color exposing (rgb, rgba)
 import MyUi exposing (Attribute, Color, Element, fill, height, px, shrink, width)
@@ -16,26 +16,19 @@ fontSizes =
     }
 
 
-sizes :
-    { borderWidth : number1
-    , roundness : number2
-    , rhythm : number3
-    }
-sizes =
-    { borderWidth = 1
-    , roundness = 3
-    , rhythm = 10
-    }
+rhythm : number
+rhythm =
+    4
 
 
 spacing : Attribute msg
 spacing =
-    MyUi.spacing sizes.rhythm
+    MyUi.spacing rhythm
 
 
 padding : Attribute msg
 padding =
-    MyUi.padding sizes.rhythm
+    MyUi.padding rhythm
 
 
 colors :
@@ -67,7 +60,7 @@ column attrs =
 button : List (Attribute msg) -> { onPress : Maybe msg, label : Element msg } -> Element msg
 button attrs config =
     MyUi.el
-        (MyUi.border sizes.borderWidth
+        (MyUi.border 1
             :: padding
             :: width shrink
             :: (case config.onPress of
@@ -80,6 +73,22 @@ button attrs config =
             :: attrs
         )
         config.label
+
+
+toggleButton : List (Attribute msg) -> { active : Bool, onPress : Maybe msg, label : Element msg } -> Element msg
+toggleButton attrs config =
+    button
+        ((if config.active then
+            MyUi.background <| rgb 0.4 0.4 0.9
+
+          else
+            MyUi.noAttr
+         )
+            :: attrs
+        )
+        { onPress = config.onPress
+        , label = config.label
+        }
 
 
 text : (Translations.I18n -> String) -> Element msg

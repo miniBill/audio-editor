@@ -1,4 +1,4 @@
-module MyUi.Font exposing (Font, Weight, bold, family, monospace, size, weight)
+module MyUi.Font exposing (Font, Weight, bold, center, family, monospace, size, weight)
 
 import MyUi exposing (Attribute)
 import MyUi.Internal exposing (attribute)
@@ -36,3 +36,8 @@ family values =
 monospace : Font
 monospace =
     Ui.Font.monospace
+
+
+center : Attribute msg
+center =
+    attribute Ui.Font.center

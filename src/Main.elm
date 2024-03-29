@@ -542,7 +542,7 @@ errorToString error =
 
 waveviewWidth : Model -> Int
 waveviewWidth model =
-    model.width - Theme.sizes.rhythm * 3 - infoboxWidth - 10
+    model.width - Theme.rhythm * 3 - infoboxWidth
 
 
 infoboxWidth : Int
@@ -556,7 +556,7 @@ innerView audioData model playlist =
         ( header, at ) =
             case model.playing of
                 Playing from ->
-                    ( [ el [ Font.weight Font.bold ] <| text Translations.playing
+                    ( [ el [ Font.weight Font.bold, width shrink ] <| text Translations.playing
                       , Theme.button []
                             { onPress = Just PauseResume
                             , label = text Translations.pause
@@ -571,7 +571,7 @@ innerView audioData model playlist =
 
                 Paused at_ ->
                     ( if at_ == Quantity.zero then
-                        [ el [ Font.weight Font.bold ] <| text Translations.stopped
+                        [ el [ Font.weight Font.bold, width shrink ] <| text Translations.stopped
                         , Theme.button []
                             { onPress = Just Play
                             , label = text Translations.play
@@ -579,7 +579,7 @@ innerView audioData model playlist =
                         ]
 
                       else
-                        [ el [ Font.weight Font.bold ] <| text Translations.paused
+                        [ el [ Font.weight Font.bold, width shrink ] <| text Translations.paused
                         , Theme.button []
                             { onPress = Just PauseResume
                             , label = text Translations.resume
@@ -600,8 +600,7 @@ innerView audioData model playlist =
                 , height fill
                 ]
                 [ volumeSlider model.mainVolume
-                , Theme.row [ width shrink ] header
-                , timeTracker audioData model at
+                , Theme.row [] [ Theme.row [] header, el [ alignRight ] <| timeTracker audioData model at ]
                 , viewTracks audioData model at
                 , addButtons playlist
                 ]
@@ -620,15 +619,15 @@ viewTracks audioData model at =
             , at = at
             }
     in
-    Table.view [ spacing 0, padding 0 ]
+    Table.view [ Theme.spacing, padding 0 ]
         (Table.columns
             [ Table.column
                 { header = Table.cell [ padding 0 ] Ui.none
                 , view =
-                    \( index, { name } ) ->
+                    \( index, track ) ->
                         Table.cell [ padding 0, width <| px infoboxWidth ] <|
                             Theme.column []
-                                [ Ui.row [ spacing 2 ]
+                                [ Ui.row [ spacing <| Theme.rhythm // 2 ]
                                     [ el
                                         [ width <| px 20
                                         , height <| px 20
@@ -643,17 +642,25 @@ viewTracks audioData model at =
                                     , el
                                         [ Ui.clipWithEllipsis
                                         , width <| px <| infoboxWidth - 22
-                                        , Theme.titleInvariant name
+                                        , Theme.titleInvariant track.name
                                         ]
-                                        (textInvariant name)
+                                        (textInvariant track.name)
                                     ]
-                                , Ui.row []
-                                    [ Theme.button []
+                                , Ui.row [ spacing <| Theme.rhythm // 2 ]
+                                    [ Theme.toggleButton
+                                        [ width fill
+                                        , Font.center
+                                        ]
                                         { onPress = Just <| MuteTrack index
+                                        , active = track.mute
                                         , label = text Translations.mute
                                         }
-                                    , Theme.button []
+                                    , Theme.toggleButton
+                                        [ width fill
+                                        , Font.center
+                                        ]
                                         { onPress = Just <| SoloTrack index
+                                        , active = track.solo
                                         , label = text Translations.solo
                                         }
                                     ]
