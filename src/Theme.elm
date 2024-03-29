@@ -1,39 +1,20 @@
-module Theme exposing (Attribute, Context, Element, button, colors, column, fontSizes, horizontalSlider, padding, row, sizes, spacing, text, textInvariant, wrappedRow)
+module Theme exposing (button, colors, column, fontSizes, padding, row, sizes, sliderHorizontal, spacing, text, textInvariant)
 
-import Element.WithContext as Element exposing (Color, fill, height, px, rgb, rgba, width)
-import Element.WithContext.Background as Background
-import Element.WithContext.Border as Border
-import Element.WithContext.Font as Font
-import Element.WithContext.Input as Input
+import Color exposing (rgb, rgba)
+import MyUi exposing (Attribute, Color, Element, fill, height, px, width)
+import MyUi.Events
+import MyUi.Font as Font
+import MyUi.Input as Input
+import MyUi.Internal
 import Translations
-
-
-type alias Context =
-    { i18n : Translations.I18n }
-
-
-type alias Element msg =
-    Element.Element Context msg
-
-
-type alias Attribute msg =
-    Element.Attribute Context msg
-
-
-type alias Label msg =
-    Input.Label Context msg
+import Ui
 
 
 fontSizes :
     { normal : Attribute msg
     }
 fontSizes =
-    let
-        modular : Int -> Attribute msg
-        modular n =
-            Font.size <| round <| Element.modular 20 1.25 n
-    in
-    { normal = modular 0
+    { normal = Font.size 20
     }
 
 
@@ -51,12 +32,12 @@ sizes =
 
 spacing : Attribute msg
 spacing =
-    Element.spacing sizes.rhythm
+    MyUi.spacing sizes.rhythm
 
 
 padding : Attribute msg
 padding =
-    Element.padding sizes.rhythm
+    MyUi.padding sizes.rhythm
 
 
 colors :
@@ -77,58 +58,65 @@ colors =
 
 row : List (Attribute msg) -> List (Element msg) -> Element msg
 row attrs =
-    Element.row (spacing :: attrs)
-
-
-wrappedRow : List (Attribute msg) -> List (Element msg) -> Element msg
-wrappedRow attrs =
-    Element.wrappedRow (spacing :: attrs)
+    MyUi.row (spacing :: attrs)
 
 
 column : List (Attribute msg) -> List (Element msg) -> Element msg
 column attrs =
-    Element.column (spacing :: attrs)
+    MyUi.column (spacing :: attrs)
 
 
 button : List (Attribute msg) -> { onPress : Maybe msg, label : Element msg } -> Element msg
-button attrs =
-    Input.button (Border.width sizes.borderWidth :: padding :: attrs)
+button attrs config =
+    MyUi.el
+        (MyUi.border sizes.borderWidth
+            :: padding
+            :: (case config.onPress of
+                    Just msg ->
+                        MyUi.Events.onClick msg
+
+                    Nothing ->
+                        MyUi.noAttr
+               )
+            :: attrs
+        )
+        config.label
 
 
 text : (Translations.I18n -> String) -> Element msg
 text f =
-    Element.with (\{ i18n } -> f i18n) Element.text
+    MyUi.Internal.Element (\{ i18n } -> Ui.text (f i18n))
 
 
 textInvariant : String -> Element msg
-textInvariant =
-    Element.text
+textInvariant value =
+    MyUi.Internal.Element (\_ -> Ui.text value)
 
 
-horizontalSlider :
+sliderHorizontal :
     List (Attribute msg)
     ->
         { onChange : Float -> msg
-        , label : Label msg
+        , label : Input.Label
         , min : Float
         , max : Float
         , step : Maybe Float
         , value : Float
         }
     -> Element msg
-horizontalSlider attrs config =
-    Input.slider
+sliderHorizontal attrs config =
+    Input.sliderHorizontal
         ([ height <| px 30
          , width fill
-         , Element.behindContent
-            (Element.el
+         , MyUi.behindContent
+            (MyUi.el
                 [ width fill
                 , height <| px 2
-                , Element.centerY
-                , Background.color colors.gray
-                , Border.rounded 2
+                , MyUi.centerY
+                , MyUi.background colors.gray
+                , MyUi.rounded 2
                 ]
-                Element.none
+                MyUi.none
             )
          ]
             ++ attrs
@@ -139,5 +127,5 @@ horizontalSlider attrs config =
         , max = config.max
         , step = config.step
         , value = config.value
-        , thumb = Input.defaultThumb
+        , thumb = Nothing
         }

@@ -2,12 +2,8 @@ port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, 
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
+import Color
 import Duration exposing (Duration)
-import Element.WithContext as Element exposing (alignBottom, alignRight, centerX, centerY, column, el, fill, height, px, width)
-import Element.WithContext.Background as Background
-import Element.WithContext.Font as Font
-import Element.WithContext.Input as Input
-import Element.WithContext.Lazy as Lazy
 import Float.Extra
 import Html exposing (Html)
 import Html.Attributes
@@ -15,13 +11,20 @@ import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
+import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, width)
+import MyUi.Font as Font
+import MyUi.Input as Input exposing (Label)
+import MyUi.Lazy as Lazy
+import MyUi.Table as Table
 import Quantity exposing (Quantity)
 import Round
 import Task
-import Theme exposing (Context, Element, text, textInvariant)
+import Theme exposing (text, textInvariant)
 import Time
 import Translations
-import Types exposing (AudioSummary)
+import Types exposing (AudioSummary, Context)
+import Ui as VanillaUi
+import Ui.Font
 import Url.Builder
 import View.Waveform
 
@@ -147,19 +150,19 @@ mapTriple ( model, cmd, audioCmd ) =
 
 noAudioError : Html Msg
 noAudioError =
-    Element.layout {}
-        [ centerX
-        , centerY
-        , Font.size 30
+    VanillaUi.layout
+        [ VanillaUi.centerX
+        , VanillaUi.centerY
+        , Ui.Font.size 30
         ]
-        (Element.text "Audio not supported")
+        (VanillaUi.text "Audio not supported")
 
 
 outerView : AudioData -> Model -> Html Msg
 outerView audioData model =
-    Element.layout model.context
+    Ui.layout model.context
         [ Theme.fontSizes.normal
-        , Background.color Theme.colors.background
+        , Ui.background Theme.colors.background
         , width fill
         , height fill
         ]
@@ -558,42 +561,50 @@ innerView audioData model playlist =
     let
         viewTracks : Element Msg
         viewTracks =
-            Element.table [ Theme.spacing ]
-                { data =
-                    model.tracks
-                , columns =
-                    [ { header = Element.none
-                      , width = px 100
-                      , view =
+            Table.view [ Theme.spacing ]
+                (Table.columns
+                    [ Table.column
+                        { header = { attrs = [], child = Ui.none }
+                        , view =
                             \{ name } ->
-                                Theme.column [ width fill ]
-                                    [ el
-                                        [ width fill
-                                        , Background.color <| Element.rgb 1 0 0
-                                        , Element.htmlAttribute <| Html.Attributes.style "text-overflow" "ellipsis"
-                                        , Element.htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+                                { attrs = []
+                                , child =
+                                    Theme.column [ width fill ]
+                                        [ el
+                                            [ width fill
+                                            , Ui.background <| Color.rgb 1 0 0
+                                            , Ui.htmlAttribute <| Html.Attributes.style "text-overflow" "ellipsis"
+                                            , Ui.htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+                                            ]
+                                            (textInvariant name)
                                         ]
-                                        (textInvariant name)
-                                    ]
-                      }
-                    , { header = Element.none
-                      , width = fill
-                      , view =
+                                }
+                        }
+                        |> Table.withWidth { fill = False, min = Nothing, max = Just 100 }
+                    , Table.column
+                        { header = { attrs = [], child = Ui.none }
+                        , view =
                             \{ source, summary } ->
                                 case summary of
                                     Nothing ->
-                                        text Translations.loadingWaveform
+                                        { attrs = []
+                                        , child = text Translations.loadingWaveform
+                                        }
 
                                     Just raw ->
-                                        viewWaveform (Audio.length audioData source) at raw
-                      }
+                                        { attrs = []
+                                        , child = viewWaveform (Audio.length audioData source) at raw
+                                        }
+                        }
+                        |> Table.withWidth { fill = True, min = Nothing, max = Nothing }
                     ]
-                }
+                )
+                model.tracks
 
         ( header, at ) =
             case model.playing of
                 Stopped ->
-                    ( [ el [ Font.bold ] <| text Translations.stopped
+                    ( [ el [ Font.weight Font.bold ] <| text Translations.stopped
                       , Theme.button []
                             { onPress = Just Play
                             , label = text Translations.play
@@ -603,7 +614,7 @@ innerView audioData model playlist =
                     )
 
                 Playing from ->
-                    ( [ el [ Font.bold ] <| text Translations.playing
+                    ( [ el [ Font.weight Font.bold ] <| text Translations.playing
                       , Theme.button []
                             { onPress = Just PauseResume
                             , label = text Translations.pause
@@ -617,7 +628,7 @@ innerView audioData model playlist =
                     )
 
                 Paused at_ ->
-                    ( [ el [ Font.bold ] <| text Translations.paused
+                    ( [ el [ Font.weight Font.bold ] <| text Translations.paused
                       , Theme.button []
                             { onPress = Just PauseResume
                             , label = text Translations.resume
@@ -649,16 +660,16 @@ innerView audioData model playlist =
 viewWaveform : Duration -> Maybe Duration -> AudioSummary -> Element Msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
-        |> List.map Element.html
+        |> List.map Ui.html
         |> column [ width fill ]
-        |> Element.map WaveformMsg
+        |> Ui.map WaveformMsg
 
 
 timeTracker : AudioData -> Model -> Duration -> Element msg
 timeTracker audioData model at =
     case totalLength audioData model of
         Nothing ->
-            Element.none
+            Ui.none
 
         Just length ->
             el [ Font.family [ Font.monospace ] ] <|
@@ -683,22 +694,35 @@ addButtons =
                             , onPress = Just <| AddTrack name
                             }
                     )
-                |> (::) (el [ Font.bold ] <| text Translations.loaded)
-                |> Theme.wrappedRow [ alignBottom ]
+                |> (::) (el [ Font.weight Font.bold ] <| text Translations.loaded)
+                |> Theme.row [ Ui.wrap, alignBottom ]
 
 
 volumeSlider : Float -> Element Msg
 volumeSlider =
     Lazy.lazy <|
         \mainVolume ->
-            Theme.horizontalSlider []
-                { onChange = Volume
-                , label = Input.labelAbove [ Font.bold ] (text Translations.mainVolume)
-                , min = 0
-                , max = 1
-                , step = Nothing
-                , value = mainVolume
-                }
+            Ui.withContext <|
+                \context ->
+                    let
+                        label :
+                            { element : Element msg
+                            , id : Label
+                            }
+                        label =
+                            Input.label context "volume-label" [ Font.weight Font.bold ] (text Translations.mainVolume)
+                    in
+                    Theme.column []
+                        [ label.element
+                        , Theme.sliderHorizontal []
+                            { onChange = Volume
+                            , label = label.id
+                            , min = 0
+                            , max = 1
+                            , step = Nothing
+                            , value = mainVolume
+                            }
+                        ]
 
 
 durationToString : Duration -> String
@@ -720,25 +744,26 @@ menuBar =
     Theme.row
         [ Theme.padding
         , width fill
-        , Background.color Theme.colors.gray
+        , Ui.background Theme.colors.gray
         ]
         [ el [ alignRight ] languagePicker ]
 
 
 languagePicker : Element Msg
 languagePicker =
-    Element.with .i18n <|
-        \i18n ->
+    Ui.withContext <|
+        \{ i18n } ->
             let
                 current : Translations.Language
                 current =
                     Translations.currentLanguage i18n
 
-                languageToOption : Translations.Language -> Input.Option { i18n : Translations.I18n } Translations.Language Msg
+                languageToOption : Translations.Language -> Input.Option Translations.Language Msg
                 languageToOption language =
                     Input.option language <| textInvariant <| Translations.languageToString language
             in
-            Input.radioRow [ Theme.spacing ]
+            Input.chooseOne Ui.row
+                [ Theme.spacing ]
                 { label = Input.labelHidden "Language"
                 , onChange = SwitchLanguage
                 , options = List.map languageToOption Translations.languages

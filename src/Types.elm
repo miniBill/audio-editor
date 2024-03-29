@@ -1,4 +1,6 @@
-module Types exposing (AudioSummary, Point)
+module Types exposing (AudioSummary, Context, Point)
+
+import Translations
 
 
 type alias AudioSummary =
@@ -7,3 +9,7 @@ type alias AudioSummary =
 
 type alias Point =
     ( Float, Float, Float )
+
+
+type alias Context =
+    { i18n : Translations.I18n }
