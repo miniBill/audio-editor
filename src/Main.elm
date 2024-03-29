@@ -657,16 +657,7 @@ addButtons =
                     (\name ->
                         Theme.button []
                             { label =
-                                (if String.contains "-" name then
-                                    name
-                                        |> String.split "-"
-                                        |> List.drop 2
-                                        |> String.join "-"
-                                        |> String.trim
-
-                                 else
-                                    name
-                                )
+                                name
                                     |> Translations.add
                                     |> text
                             , onPress = Just <| AddTrack name
