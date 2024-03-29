@@ -1,4 +1,4 @@
-module MyUi.Table exposing (Cell, Column, Config, column, columns, view, withWidth)
+module MyUi.Table exposing (Cell, Column, Config, cell, column, columns, view, withWidth)
 
 import MyUi exposing (Attribute, Element)
 import MyUi.Internal exposing (unwrapAttributes, unwrapElement, wrap)
@@ -42,9 +42,9 @@ column config =
 
 
 unwrapCell : Context -> Cell msg -> Ui.Table.Cell msg
-unwrapCell context cell =
-    { attrs = unwrapAttributes context cell.attrs
-    , child = unwrapElement context cell.child
+unwrapCell context { attrs, child } =
+    { attrs = unwrapAttributes context attrs
+    , child = unwrapElement context child
     }
 
 
@@ -54,3 +54,10 @@ withWidth :
     -> Column state data msg
 withWidth config (Column col) =
     Column (\context -> col context |> Ui.Table.withWidth config)
+
+
+cell : List (Attribute msg) -> Element msg -> Cell msg
+cell attrs child =
+    { attrs = attrs
+    , child = child
+    }

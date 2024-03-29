@@ -2,16 +2,14 @@ port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, 
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
-import Color
 import Duration exposing (Duration)
 import Float.Extra
 import Html exposing (Html)
-import Html.Attributes
 import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
-import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, width)
+import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, px, shrink, width)
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
 import MyUi.Lazy as Lazy
@@ -163,7 +161,6 @@ outerView audioData model =
     Ui.layout model.context
         [ Theme.fontSizes.normal
         , Ui.background Theme.colors.background
-        , width fill
         , height fill
         ]
         (view audioData model)
@@ -561,40 +558,36 @@ innerView audioData model playlist =
     let
         viewTracks : Element Msg
         viewTracks =
-            Table.view [ Theme.spacing ]
+            Table.view [ Theme.spacing, padding 0 ]
                 (Table.columns
                     [ Table.column
-                        { header = { attrs = [], child = Ui.none }
+                        { header = { attrs = [ padding 0 ], child = Ui.none }
                         , view =
                             \{ name } ->
-                                { attrs = []
-                                , child =
-                                    Theme.column [ width fill ]
+                                Table.cell [ padding 0 ] <|
+                                    Theme.column []
                                         [ el
-                                            [ width fill
-                                            , Ui.background <| Color.rgb 1 0 0
-                                            , Ui.htmlAttribute <| Html.Attributes.style "text-overflow" "ellipsis"
-                                            , Ui.htmlAttribute <| Html.Attributes.style "overflow" "hidden"
+                                            [ Ui.clipWithEllipsis
+                                            , width (px 120) -- Without this the column gets large
+                                            , Theme.titleInvariant name
                                             ]
                                             (textInvariant name)
                                         ]
-                                }
                         }
-                        |> Table.withWidth { fill = False, min = Nothing, max = Just 100 }
+                        |> Table.withWidth { fill = False, min = Nothing, max = Nothing }
                     , Table.column
-                        { header = { attrs = [], child = Ui.none }
+                        { header = { attrs = [ padding 0 ], child = Ui.none }
                         , view =
                             \{ source, summary } ->
-                                case summary of
-                                    Nothing ->
-                                        { attrs = []
-                                        , child = text Translations.loadingWaveform
-                                        }
+                                { attrs = [ padding 0 ]
+                                , child =
+                                    case summary of
+                                        Nothing ->
+                                            text Translations.loadingWaveform
 
-                                    Just raw ->
-                                        { attrs = []
-                                        , child = viewWaveform (Audio.length audioData source) at raw
-                                        }
+                                        Just raw ->
+                                            viewWaveform (Audio.length audioData source) at raw
+                                }
                         }
                         |> Table.withWidth { fill = True, min = Nothing, max = Nothing }
                     ]
@@ -641,15 +634,14 @@ innerView audioData model playlist =
                     , Just at_
                     )
     in
-    column [ width fill, height fill ]
+    column [ height fill ]
         [ menuBar
         , Theme.column
             [ Theme.padding
-            , width fill
             , height fill
             ]
             [ volumeSlider model.mainVolume
-            , Theme.row [] header
+            , Theme.row [ width shrink ] header
             , timeTracker audioData model (Maybe.withDefault Quantity.zero at)
             , viewTracks
             , addButtons playlist
@@ -661,7 +653,7 @@ viewWaveform : Duration -> Maybe Duration -> AudioSummary -> Element Msg
 viewWaveform length at channels =
     View.Waveform.view length at channels
         |> List.map Ui.html
-        |> column [ width fill ]
+        |> column []
         |> Ui.map WaveformMsg
 
 
@@ -743,7 +735,6 @@ menuBar : Element Msg
 menuBar =
     Theme.row
         [ Theme.padding
-        , width fill
         , Ui.background Theme.colors.gray
         ]
         [ el [ alignRight ] languagePicker ]

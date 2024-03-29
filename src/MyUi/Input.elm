@@ -1,7 +1,7 @@
 module MyUi.Input exposing (Label, Option, chooseOne, label, labelHidden, option, sliderHorizontal)
 
 import MyUi exposing (Attribute, Element)
-import MyUi.Internal exposing (attribute, element, unwrapAttributes, wrap)
+import MyUi.Internal exposing (attribute, element, unwrapAttributes, unwrapElement, wrap)
 import Types exposing (Context)
 import Ui
 import Ui.Input
@@ -46,13 +46,10 @@ chooseOne layout attrs config =
         (\context ->
             Ui.Input.chooseOne
                 (\layoutAttrs layoutChildren ->
-                    let
-                        (MyUi.Internal.Element l) =
-                            layout
-                                (List.map attribute layoutAttrs)
-                                (List.map element layoutChildren)
-                    in
-                    l context
+                    unwrapElement context <|
+                        layout
+                            (List.map attribute layoutAttrs)
+                            (List.map element layoutChildren)
                 )
                 (unwrapAttributes context attrs)
                 { onChange = config.onChange
@@ -64,8 +61,8 @@ chooseOne layout attrs config =
 
 
 option : value -> Element msg -> Option value msg
-option value (MyUi.Internal.Element child) =
-    Option (\context -> Ui.Input.option value (child context))
+option value child =
+    Option (\context -> Ui.Input.option value (unwrapElement context child))
 
 
 label :
@@ -77,11 +74,11 @@ label :
         { element : Element msg
         , id : Ui.Input.Label
         }
-label context id attrs (MyUi.Internal.Element labelElement) =
+label context id attrs labelElement =
     let
         inner : { element : Ui.Element msg, id : Ui.Input.Label }
         inner =
-            Ui.Input.label id (unwrapAttributes context attrs) (labelElement context)
+            Ui.Input.label id (unwrapAttributes context attrs) (unwrapElement context labelElement)
     in
     { element = element inner.element
     , id = inner.id

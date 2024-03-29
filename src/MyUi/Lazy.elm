@@ -1,7 +1,7 @@
 module MyUi.Lazy exposing (lazy)
 
 import MyUi exposing (Element)
-import MyUi.Internal
+import MyUi.Internal exposing (unwrapElement)
 import Types exposing (Context)
 import Ui
 import Ui.Lazy
@@ -14,8 +14,4 @@ lazy f arg =
 
 helper : (value -> Element msg) -> Context -> value -> Ui.Element msg
 helper f context arg =
-    let
-        (MyUi.Internal.Element child) =
-            f arg
-    in
-    child context
+    unwrapElement context (f arg)

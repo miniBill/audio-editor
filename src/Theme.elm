@@ -1,13 +1,11 @@
-module Theme exposing (button, colors, column, fontSizes, padding, row, sizes, sliderHorizontal, spacing, text, textInvariant)
+module Theme exposing (button, colors, column, fontSizes, padding, row, sizes, sliderHorizontal, spacing, text, textInvariant, titleInvariant)
 
 import Color exposing (rgb, rgba)
-import MyUi exposing (Attribute, Color, Element, fill, height, px, width)
+import MyUi exposing (Attribute, Color, Element, fill, height, px, shrink, width)
 import MyUi.Events
 import MyUi.Font as Font
 import MyUi.Input as Input
-import MyUi.Internal
 import Translations
-import Ui
 
 
 fontSizes :
@@ -71,6 +69,7 @@ button attrs config =
     MyUi.el
         (MyUi.border sizes.borderWidth
             :: padding
+            :: width shrink
             :: (case config.onPress of
                     Just msg ->
                         MyUi.Events.onClick msg
@@ -85,12 +84,12 @@ button attrs config =
 
 text : (Translations.I18n -> String) -> Element msg
 text f =
-    MyUi.Internal.Element (\{ i18n } -> Ui.text (f i18n))
+    MyUi.withContext (\{ i18n } -> MyUi.text (f i18n))
 
 
 textInvariant : String -> Element msg
 textInvariant value =
-    MyUi.Internal.Element (\_ -> Ui.text value)
+    MyUi.text value
 
 
 sliderHorizontal :
@@ -129,3 +128,8 @@ sliderHorizontal attrs config =
         , value = config.value
         , thumb = Nothing
         }
+
+
+titleInvariant : String -> Attribute msg
+titleInvariant value =
+    MyUi.title value
