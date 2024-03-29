@@ -6,8 +6,7 @@ import Effect.WebGL as WebGL exposing (Mesh, Shader)
 import Effect.WebGL.Texture as Texture exposing (Texture)
 import Html exposing (Html)
 import Html.Attributes
-import Html.Events
-import Json.Decode
+import Html.Events.Extra.Pointer
 import Math.Vector2 exposing (Vec2, vec2)
 import Quantity
 import Types exposing (AudioSummary, Point)
@@ -160,14 +159,14 @@ view at length channels =
                     , Html.Attributes.height 200
                     , Html.Attributes.style "max-height" "200px"
                     , Html.Attributes.style "display" "block"
-                    , Html.Events.on "click"
-                        (Json.Decode.float
-                            |> Json.Decode.at [ "offsetX" ]
-                            |> Json.Decode.map
-                                (\offsetX ->
-                                    (offsetX / toFloat sampleCount)
-                                        |> Click
-                                )
+                    , Html.Events.Extra.Pointer.onUp
+                        (\event ->
+                            let
+                                ( offsetX, _ ) =
+                                    event.pointer.offsetPos
+                            in
+                            (offsetX / toFloat sampleCount)
+                                |> Click
                         )
                     ]
     in
