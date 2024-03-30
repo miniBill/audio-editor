@@ -15,6 +15,7 @@ import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
 import MyUi.Lazy as Lazy
 import MyUi.Table as Table
+import Phosphor
 import Quantity exposing (Quantity)
 import Round
 import Task
@@ -86,8 +87,7 @@ type Msg
     | Resize Int Int
     | WaveformMsg View.Waveform.Msg
     | AddTrack String
-    | Play
-    | PauseResume
+    | PlayPause
     | Stop
     | RemoveTrack Int
     | MuteTrack Int
@@ -297,18 +297,7 @@ update audioData now msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        Play ->
-            let
-                newModel : Model
-                newModel =
-                    { model | playing = Playing now }
-            in
-            ( newModel
-            , Cmd.none
-            , Audio.cmdNone
-            )
-
-        PauseResume ->
+        PlayPause ->
             pure
                 { model
                     | playing =
@@ -554,42 +543,21 @@ infoboxWidth =
 innerView : AudioData -> Model -> List String -> Element Msg
 innerView audioData model playlist =
     let
-        ( header, at ) =
+        ( playButton, at ) =
             case model.playing of
                 Playing from ->
-                    ( [ el [ Font.weight Font.bold, width shrink ] <| text Translations.playing
-                      , Theme.button []
-                            { onPress = Just PauseResume
-                            , label = text Translations.pause
-                            }
-                      , Theme.button []
-                            { onPress = Just Stop
-                            , label = text Translations.stop
-                            }
-                      ]
+                    ( Theme.button []
+                        { onPress = Just PlayPause
+                        , label = Theme.icon Phosphor.pause
+                        }
                     , Duration.from from model.now
                     )
 
                 Paused at_ ->
-                    ( if at_ == Quantity.zero then
-                        [ el [ Font.weight Font.bold, width shrink ] <| text Translations.stopped
-                        , Theme.button []
-                            { onPress = Just Play
-                            , label = text Translations.play
-                            }
-                        ]
-
-                      else
-                        [ el [ Font.weight Font.bold, width shrink ] <| text Translations.paused
-                        , Theme.button []
-                            { onPress = Just PauseResume
-                            , label = text Translations.resume
-                            }
-                        , Theme.button []
-                            { onPress = Just Stop
-                            , label = text Translations.stop
-                            }
-                        ]
+                    ( Theme.button []
+                        { onPress = Just PlayPause
+                        , label = Theme.icon Phosphor.play
+                        }
                     , at_
                     )
     in
@@ -597,7 +565,13 @@ innerView audioData model playlist =
         [ menuBar
         , el [ Theme.padding ] <| volumeSlider model.mainVolume
         , Theme.row [ Theme.padding ]
-            [ Theme.row [] header
+            [ Theme.row []
+                [ playButton
+                , Theme.button []
+                    { onPress = Just Stop
+                    , label = Theme.icon Phosphor.stop
+                    }
+                ]
             , el [ alignRight ] <| timeTracker audioData model at
             ]
         , Ui.scrollable [ height fill ] <|
@@ -818,7 +792,7 @@ keypressDecoder =
             (\key ->
                 case key of
                     " " ->
-                        Json.Decode.succeed PauseResume
+                        Json.Decode.succeed PlayPause
 
                     _ ->
                         Json.Decode.fail "Ignored"

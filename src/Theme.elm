@@ -1,10 +1,11 @@
-module Theme exposing (button, colors, column, fontSizes, padding, rhythm, row, sliderHorizontal, spacing, text, textInvariant, titleInvariant, toggleButton)
+module Theme exposing (button, colors, column, fontSizes, icon, padding, rhythm, row, sliderHorizontal, spacing, text, textInvariant, titleInvariant, toggleButton)
 
 import Color exposing (rgb, rgba)
 import MyUi exposing (Attribute, Color, Element, fill, height, px, shrink, width)
 import MyUi.Events
 import MyUi.Font as Font
 import MyUi.Input as Input
+import Phosphor
 import Translations
 
 
@@ -142,3 +143,10 @@ sliderHorizontal attrs config =
 titleInvariant : String -> Attribute msg
 titleInvariant value =
     MyUi.title value
+
+
+icon : Phosphor.Icon -> Element msg
+icon value =
+    value Phosphor.Duotone
+        |> Phosphor.toHtml []
+        |> MyUi.html
