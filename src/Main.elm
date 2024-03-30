@@ -593,18 +593,21 @@ innerView audioData model playlist =
                     , at_
                     )
     in
-    column [ height fill ]
+    Theme.column [ height fill ]
         [ menuBar
+        , el [ Theme.padding ] <| volumeSlider model.mainVolume
+        , Theme.row [ Theme.padding ]
+            [ Theme.row [] header
+            , el [ alignRight ] <| timeTracker audioData model at
+            ]
         , Ui.scrollable [ height fill ] <|
             Theme.column
                 [ Theme.padding
                 , height fill
                 ]
-                [ volumeSlider model.mainVolume
-                , Theme.row [] [ Theme.row [] header, el [ alignRight ] <| timeTracker audioData model at ]
-                , viewTracks audioData model at
-                , addButtons playlist
+                [ viewTracks audioData model at
                 ]
+        , el [ Theme.padding ] <| addButtons playlist
         ]
 
 
