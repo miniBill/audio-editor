@@ -34,16 +34,10 @@ padding =
 
 colors :
     { background : Color
-    , errorMessage : Color
-    , modalTransparentBackground : Color
-    , warning : Color
     , gray : Color
     }
 colors =
     { background = rgb 0.9 0.9 0.9
-    , errorMessage = rgb 0.9 0 0
-    , modalTransparentBackground = rgba 0.5 0.5 0.5 0.5
-    , warning = rgb 0.8 0.8 0
     , gray = rgb 0.8 0.8 0.8
     }
 
