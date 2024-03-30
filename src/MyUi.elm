@@ -1,4 +1,4 @@
-module MyUi exposing (Attribute, Color, Element, Length, Position, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, move, noAttr, none, padding, px, rounded, row, scrollable, shrink, spacing, spacingWith, text, title, width, withContext, wrap)
+module MyUi exposing (Attribute, Color, Element, Length, Option, Position, alignBottom, alignRight, background, behindContent, border, centerX, centerY, clipWithEllipsis, column, el, fill, height, html, htmlAttribute, layout, map, move, noAttr, none, padding, px, rounded, row, scrollable, shrink, spacing, spacingWith, text, title, width, withContext, wrap)
 
 import Html
 import Html.Attributes
@@ -17,6 +17,10 @@ type alias Color =
 
 type alias Position =
     Ui.Position
+
+
+type alias Option =
+    Ui.Option
 
 
 type alias Element msg =
