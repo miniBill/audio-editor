@@ -389,14 +389,9 @@ update audioData now msg ({ context } as model) =
                     pure
                         { model
                             | tracks =
-                                List.map
-                                    (\track ->
-                                        if track.url == url then
-                                            { track | summary = Just summary }
-
-                                        else
-                                            track
-                                    )
+                                List.Extra.updateIf
+                                    (\track -> track.url == url)
+                                    (\track -> { track | summary = Just summary })
                                     model.tracks
                         }
 
@@ -629,7 +624,7 @@ viewTracks audioData model at =
         hasSolos =
             List.any .solo model.tracks
     in
-    Table.view [ Theme.spacing, padding 0 ]
+    Table.view [ Ui.spacingWith { horizontal = Theme.rhythm, vertical = 0 }, padding 0 ]
         (Table.columns
             [ Table.column
                 { header = Table.cell [ padding 0 ] Ui.none
