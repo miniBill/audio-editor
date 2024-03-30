@@ -1,6 +1,7 @@
 module Theme exposing (button, colors, column, fontSizes, icon, padding, rhythm, row, sliderHorizontal, spacing, text, textInvariant, titleInvariant, toggleButton)
 
-import Color exposing (rgb, rgba)
+import Color exposing (rgb)
+import Html.Attributes
 import MyUi exposing (Attribute, Color, Element, fill, height, px, shrink, width)
 import MyUi.Events
 import MyUi.Font as Font
@@ -142,5 +143,5 @@ titleInvariant value =
 icon : Phosphor.Icon -> Element msg
 icon value =
     value Phosphor.Duotone
-        |> Phosphor.toHtml []
+        |> Phosphor.toHtml [ Html.Attributes.style "color" "blue" ]
         |> MyUi.html
