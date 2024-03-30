@@ -1,12 +1,5 @@
 loaded = Loaded
 add = Add {$trackName}
-play = Play
-playing = Playing
-pause = Pause
-paused = Paused
-resume = Resume
-stopped = Stopped
-stop = Stop
 mainVolume = Main volume
 loadingWaveform = Loading file
 mute = Mute

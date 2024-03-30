@@ -38,12 +38,14 @@ config : List Rule
 config =
     [ Docs.ReviewAtDocs.rule
     , NoConfusingPrefixOperator.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
     , NoDebug.TodoOrToString.rule
         |> Rule.ignoreErrorsForDirectories [ "tests/" ]
     , NoExposingEverything.rule
     , NoImportingEverything.rule []
     , NoMissingTypeAnnotation.rule
     , NoMissingTypeAnnotationInLetIn.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
     , NoMissingTypeExpose.rule
     , NoSimpleLetBody.rule
     , NoPrematureLetComputation.rule
@@ -54,12 +56,11 @@ config =
         |> Rule.ignoreErrorsForDirectories [ "src/MyUi" ]
         |> Rule.ignoreErrorsForFiles [ "src/MyUi.elm" ]
     , NoUnused.Parameters.rule
+        |> Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
     , NoUnused.Patterns.rule
     , NoUnused.Variables.rule
     , Simplify.rule Simplify.defaults
+        |> Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
     , NoModuleOnExposedNames.rule
     ]
-        |> List.map
-            (Rule.ignoreErrorsForFiles [ "src/Translations.elm" ]
-                >> Rule.ignoreErrorsForDirectories [ "vendored" ]
-            )
+        |> List.map (Rule.ignoreErrorsForDirectories [ "vendored" ])
