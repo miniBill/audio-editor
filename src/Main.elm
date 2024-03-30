@@ -9,7 +9,7 @@ import Http
 import Json.Decode
 import Json.Encode
 import List.Extra
-import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, column, el, fill, height, padding, px, shrink, spacing, width)
+import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, el, fill, height, padding, px, shrink, spacing, width)
 import MyUi.Events as Events
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
@@ -740,9 +740,9 @@ volumeSlider =
                             , id : Label
                             }
                         label =
-                            Input.label context "volume-label" [ Font.weight Font.bold ] (text Translations.mainVolume)
+                            Input.label context "volume-label" [ width shrink, Font.weight Font.bold ] (text Translations.mainVolume)
                     in
-                    Theme.column []
+                    Theme.row []
                         [ label.element
                         , Theme.sliderHorizontal []
                             { onChange = Volume
