@@ -1,4 +1,4 @@
-module Types exposing (AudioSummary, Context, Point, Track)
+module Types exposing (AudioSummary, Context, Point, Selection(..), SelectionData, Track)
 
 import Audio
 import Duration exposing (Duration)
@@ -26,4 +26,17 @@ type alias Track =
     , duration : Duration
     , mute : Bool
     , solo : Bool
+    }
+
+
+type Selection
+    = SelectionNone
+    | SelectionRange SelectionData
+
+
+type alias SelectionData =
+    { fromTrack : Int
+    , toTrack : Int
+    , from : Duration
+    , to : Duration
     }

@@ -1,4 +1,4 @@
-port module Main exposing (Flags, InnerModel, Model, MouseStatus, Msg, PlayingStatus, Selection, Timed, main)
+port module Main exposing (Flags, InnerModel, Model, MouseStatus, Msg, PlayingStatus, Timed, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
@@ -23,7 +23,7 @@ import Task
 import Theme exposing (text, textInvariant)
 import Time
 import Translations
-import Types exposing (AudioSummary, Context, Track)
+import Types exposing (AudioSummary, Context, Selection(..), Track)
 import Ui as VanillaUi
 import Ui.Font
 import Url.Builder
@@ -71,19 +71,6 @@ type alias Model =
 type MouseStatus
     = MouseNone
     | MouseDown
-
-
-type Selection
-    = SelectionNone
-    | SelectionRange SelectionData
-
-
-type alias SelectionData =
-    { fromTrack : Int
-    , toTrack : Int
-    , from : Duration
-    , to : Duration
-    }
 
 
 type PlayingStatus
@@ -700,10 +687,12 @@ viewTracks audioData model at =
         waveformConfig :
             { totalLength : Maybe Duration
             , at : Duration
+            , selection : Selection
             }
         waveformConfig =
             { totalLength = totalLength audioData model
             , at = at
+            , selection = model.selection
             }
 
         hasSolos : Bool

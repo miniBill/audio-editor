@@ -11,7 +11,7 @@ import MyUi as Ui exposing (Element, centerX, centerY, el)
 import Quantity
 import Theme
 import Translations
-import Types exposing (Point, Track)
+import Types exposing (Point, Selection, Track)
 
 
 type Msg
@@ -121,7 +121,7 @@ fragmentShader =
     |]
 
 
-view : { at : Duration, totalLength : Maybe Duration } -> Track -> Element Msg
+view : { at : Duration, selection : Selection, totalLength : Maybe Duration } -> Track -> Element Msg
 view config track =
     case track.summary of
         Nothing ->
