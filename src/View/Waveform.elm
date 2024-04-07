@@ -11,7 +11,7 @@ import MyUi as Ui exposing (Element, centerX, centerY, el)
 import Quantity
 import Theme
 import Translations
-import Types exposing (Point, Selection, Track)
+import Types exposing (Point, Selection(..), Track)
 
 
 type Msg
@@ -28,6 +28,8 @@ type alias Uniforms =
     { u_channel : Texture
     , u_sampleCount : Int
     , u_at : Int
+    , u_selection_from : Int
+    , u_selection_to : Int
     , u_duration : Float
     , u_offset : Float
     , u_mute : Int
@@ -94,6 +96,8 @@ fragmentShader =
         varying vec2 v_position;
         uniform sampler2D u_channel;
         uniform int u_at;
+        uniform int u_selection_from;
+        uniform int u_selection_to;
         uniform float u_offset;
         uniform float u_duration;
         uniform int u_sampleCount;
@@ -103,13 +107,16 @@ fragmentShader =
             float normalized_x = (v_position.x / 2. + 0.5 - u_offset) / u_duration;
             vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
             int pixel_x = int(gl_FragCoord.x - 0.5);
-            if (pixel_x == u_at) {
-                gl_FragColor = vec4(1., 0., 0., 1.);
+            if (pixel_x == u_at || (pixel_x == u_selection_from && pixel_x == u_selection_to)) {
+                gl_FragColor = vec4(0., 0., 0., 1.);
             } else if (normalized_x < 0. || normalized_x > 1.) {
-                // gl_FragColor = vec4(1., 1., 1., 1.);
                 discard;
             } else if (v_position.y < -point.x || v_position.y > point.z) {
-                gl_FragColor = vec4(0.753, 0.753, 0.753, 1.);
+                if (pixel_x >= u_selection_from && pixel_x <= u_selection_to) {
+                    gl_FragColor = vec4(0.922, 0.949, 1.,1.);
+                } else {
+                    gl_FragColor = vec4(0.753, 0.753, 0.753, 1.);
+                }
             } else if (u_mute == 1) {
                 gl_FragColor = vec4(0.533, 0.533, 0.565, 1.);
             } else if (abs(v_position.y) > point.y) {
@@ -121,7 +128,13 @@ fragmentShader =
     |]
 
 
-view : { at : Duration, selection : Selection, totalLength : Maybe Duration } -> Track -> Element Msg
+view :
+    { at : Duration
+    , selection : Maybe { from : Duration, to : Duration }
+    , totalLength : Maybe Duration
+    }
+    -> Track
+    -> Element Msg
 view config track =
     case track.summary of
         Nothing ->
@@ -168,6 +181,18 @@ view config track =
                             Texture.rgb
                         |> unsafeUnwrapResult
 
+                ratio : Duration -> Float
+                ratio x =
+                    Quantity.ratio x totalLength
+
+                selection : { from : Duration, to : Duration }
+                selection =
+                    config.selection
+                        |> Maybe.withDefault
+                            { from = Duration.seconds -1
+                            , to = Duration.seconds -1
+                            }
+
                 webgl : List Point -> Element Msg
                 webgl channel =
                     [ WebGL.entity vertexShader
@@ -175,9 +200,11 @@ view config track =
                         mesh
                         { u_channel = texture channel
                         , u_sampleCount = sampleCount
-                        , u_at = round <| toFloat width * Quantity.ratio config.at totalLength
-                        , u_offset = Quantity.ratio track.offset totalLength
-                        , u_duration = Quantity.ratio track.duration totalLength
+                        , u_at = round <| toFloat width * ratio config.at
+                        , u_selection_from = round <| toFloat width * ratio selection.from
+                        , u_selection_to = round <| toFloat width * ratio selection.to
+                        , u_offset = ratio track.offset
+                        , u_duration = ratio track.duration
                         , u_mute =
                             if track.mute && not track.solo then
                                 1

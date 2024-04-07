@@ -685,14 +685,29 @@ viewTracks : AudioData -> Model -> Duration -> Element Msg
 viewTracks audioData model at =
     let
         waveformConfig :
-            { totalLength : Maybe Duration
-            , at : Duration
-            , selection : Selection
-            }
-        waveformConfig =
+            Int
+            ->
+                { totalLength : Maybe Duration
+                , at : Duration
+                , selection : Maybe { from : Duration, to : Duration }
+                }
+        waveformConfig index =
             { totalLength = totalLength audioData model
             , at = at
-            , selection = model.selection
+            , selection =
+                case model.selection of
+                    SelectionRange range ->
+                        if index >= range.fromTrack && index <= range.toTrack then
+                            Just
+                                { from = Quantity.min range.from range.to
+                                , to = Quantity.max range.from range.to
+                                }
+
+                        else
+                            Nothing
+
+                    SelectionNone ->
+                        Nothing
             }
 
         hasSolos : Bool
@@ -752,7 +767,7 @@ viewTracks audioData model at =
                     \( index, track ) ->
                         Table.cell [ padding 0, width <| px <| waveviewWidth model ] <|
                             Ui.map (WaveformMsg index) <|
-                                View.Waveform.view waveformConfig
+                                View.Waveform.view (waveformConfig index)
                                     { track
                                         | mute =
                                             if hasSolos then
