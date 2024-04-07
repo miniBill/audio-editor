@@ -10,6 +10,7 @@ import Json.Decode
 import Json.Encode
 import List.Extra
 import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, el, fill, height, padding, px, shrink, spacing, width)
+import MyUi.Anim as Anim
 import MyUi.Events as Events
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
@@ -53,6 +54,7 @@ type alias Flags =
 
 type alias Model =
     { context : Context
+    , animationState : Anim.State
     , inner : InnerModel
     , playing : PlayingStatus
     , tracks : List Track
@@ -92,6 +94,7 @@ type Msg
     | RemoveTrack Int
     | MuteTrack Int
     | SoloTrack Int
+    | AnimMsg Anim.Msg
 
 
 type Timed msg
@@ -152,7 +155,12 @@ noAudioError =
 
 outerView : AudioData -> Model -> Html Msg
 outerView audioData model =
-    Ui.layout model.context
+    Anim.layout model.context
+        { options = []
+        , toMsg = AnimMsg
+        , breakpoints = Nothing
+        }
+        model.animationState
         [ Theme.fontSizes.normal
         , Ui.background Theme.colors.background
         , height fill
@@ -219,6 +227,7 @@ init flags =
         model =
             if flags.hasAudio then
                 { context = { i18n = i18n }
+                , animationState = Anim.init
                 , inner = LoadingPlaylist
                 , tracks = []
                 , playing = Paused Quantity.zero
@@ -432,6 +441,16 @@ update audioData now msg ({ context } as model) =
 
         SoloTrack index ->
             pure { model | tracks = List.Extra.updateAt index (\track -> { track | solo = not track.solo }) model.tracks }
+
+        AnimMsg animMsg ->
+            let
+                ( newAnimationState, cmd ) =
+                    Anim.update AnimMsg animMsg model.animationState
+            in
+            ( { model | animationState = newAnimationState }
+            , cmd
+            , Audio.cmdNone
+            )
 
 
 totalLength : AudioData -> Model -> Maybe (Quantity Float Duration.Seconds)
@@ -782,6 +801,8 @@ subscriptions _ _ =
         , Browser.Events.onResize (\w h -> Resize w h |> Untimed)
         , Browser.Events.onKeyPress keypressDecoder
             |> Sub.map Untimed
+
+        -- , Anim.subscription
         ]
 
 

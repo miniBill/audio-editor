@@ -3,6 +3,7 @@ module Theme exposing (button, colors, column, fontSizes, icon, padding, rhythm,
 import Color exposing (rgb)
 import Html.Attributes
 import MyUi exposing (Attribute, Color, Element, fill, height, px, shrink, width)
+import MyUi.Anim
 import MyUi.Events
 import MyUi.Font as Font
 import MyUi.Input as Input
@@ -66,9 +67,18 @@ button attrs config =
                     Nothing ->
                         MyUi.noAttr
                )
+            :: MyUi.Anim.hoveredWith
+                [ [ MyUi.Anim.backgroundColor Color.blue ]
+                    |> MyUi.Anim.step durations.short
+                ]
             :: attrs
         )
         config.label
+
+
+durations : { short : MyUi.Anim.Duration }
+durations =
+    { short = MyUi.Anim.ms 100 }
 
 
 toggleButton : List (Attribute msg) -> { active : Bool, onPress : Maybe msg, label : Element msg } -> Element msg
