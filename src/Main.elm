@@ -1,4 +1,4 @@
-port module Main exposing (Flags, InnerModel, Model, Msg, PlayingStatus, Timed, main)
+port module Main exposing (Flags, InnerModel, Model, MouseStatus, Msg, PlayingStatus, Selection, Timed, main)
 
 import Audio exposing (Audio, AudioCmd, AudioData)
 import Browser.Events
@@ -63,12 +63,33 @@ type alias Model =
     , sampleRate : Int
     , width : Int
     , height : Int
+    , mouseStatus : MouseStatus
+    , selection : Selection
+    }
+
+
+type MouseStatus
+    = MouseNone
+    | MouseDown
+
+
+type Selection
+    = SelectionNone
+    | SelectionRange SelectionData
+
+
+type alias SelectionData =
+    { fromTrack : Int
+    , toTrack : Int
+    , from : Duration
+    , to : Duration
     }
 
 
 type PlayingStatus
     = Playing Time.Posix
     | Paused Duration
+    | Stopped
 
 
 type InnerModel
@@ -87,7 +108,7 @@ type Msg
     | Tick
     | GotAudioSummary Json.Decode.Value
     | Resize Int Int
-    | WaveformMsg View.Waveform.Msg
+    | WaveformMsg Int View.Waveform.Msg
     | AddTrack String
     | PlayPause
     | Stop
@@ -209,23 +230,26 @@ audio _ model =
         Paused _ ->
             Audio.silence
 
+        Stopped ->
+            Audio.silence
+
 
 init : Flags -> ( Maybe Model, Cmd Msg, AudioCmd Msg )
 init flags =
-    let
-        i18n : Translations.I18n
-        i18n =
-            Translations.init
-                { lang =
-                    flags.language
-                        |> Translations.languageFromString
-                        |> Maybe.withDefault Translations.En
-                , path = "/dist/i18n"
-                }
+    if flags.hasAudio then
+        let
+            i18n : Translations.I18n
+            i18n =
+                Translations.init
+                    { lang =
+                        flags.language
+                            |> Translations.languageFromString
+                            |> Maybe.withDefault Translations.En
+                    , path = "/dist/i18n"
+                    }
 
-        model : Maybe Model
-        model =
-            if flags.hasAudio then
+            model : Model
+            model =
                 { context = { i18n = i18n }
                 , animationState = Anim.init
                 , inner = LoadingPlaylist
@@ -236,28 +260,29 @@ init flags =
                 , sampleRate = flags.sampleRate
                 , width = flags.width
                 , height = flags.height
+                , mouseStatus = MouseNone
+                , selection = SelectionNone
                 }
-                    |> Just
+        in
+        ( Just model
+        , Cmd.batch
+            [ Translations.loadMain
+                (\result ->
+                    result
+                        |> Result.map (\f -> f i18n)
+                        |> LoadedTranslation
+                )
+                i18n
+            , Http.get
+                { url = "/public/playlist.txt"
+                , expect = Http.expectString (\playlist -> GotPlaylist playlist)
+                }
+            ]
+        , Audio.cmdNone
+        )
 
-            else
-                Nothing
-    in
-    ( model
-    , Cmd.batch
-        [ Translations.loadMain
-            (\result ->
-                result
-                    |> Result.map (\f -> f i18n)
-                    |> LoadedTranslation
-            )
-            i18n
-        , Http.get
-            { url = "/public/playlist.txt"
-            , expect = Http.expectString (\playlist -> GotPlaylist playlist)
-            }
-        ]
-    , Audio.cmdNone
-    )
+    else
+        ( Nothing, Cmd.none, Audio.cmdNone )
 
 
 update : AudioData -> Time.Posix -> Msg -> Model -> ( Model, Cmd Msg, AudioCmd Msg )
@@ -316,10 +341,18 @@ update audioData now msg ({ context } as model) =
 
                             Paused duration ->
                                 Playing <| Duration.subtractFrom now duration
+
+                            Stopped ->
+                                case model.selection of
+                                    SelectionNone ->
+                                        Playing now
+
+                                    SelectionRange { from } ->
+                                        Playing <| Duration.subtractFrom now from
                 }
 
         Stop ->
-            pure { model | playing = Paused Quantity.zero }
+            pure { model | playing = Stopped }
 
         LoadedAudio (Err e) ->
             let
@@ -356,7 +389,7 @@ update audioData now msg ({ context } as model) =
 
         Tick ->
             { model | now = now }
-                |> stopOnSongEnd audioData
+                |> stopOnSelectionOrSongEnd audioData
                 |> pure
 
         GotAudioSummary value ->
@@ -407,25 +440,50 @@ update audioData now msg ({ context } as model) =
             , Audio.cmdNone
             )
 
-        WaveformMsg waveformMsg ->
-            case waveformMsg of
-                View.Waveform.Up at ->
-                    pure
-                        { model
-                            | playing =
-                                case model.playing of
-                                    Playing _ ->
-                                        Playing (Duration.subtractFrom model.now at)
+        WaveformMsg track waveformMsg ->
+            (case waveformMsg of
+                View.Waveform.Up _ ->
+                    { model | mouseStatus = MouseNone }
 
-                                    Paused _ ->
-                                        Paused at
-                        }
+                View.Waveform.Down at ->
+                    { model
+                        | mouseStatus = MouseDown
+                        , selection =
+                            SelectionRange
+                                { fromTrack = track
+                                , toTrack = track
+                                , from = at
+                                , to = at
+                                }
+                    }
 
-                View.Waveform.Down _ ->
-                    pure model
+                View.Waveform.Move at ->
+                    case ( model.mouseStatus, model.selection ) of
+                        ( MouseDown, SelectionRange selection ) ->
+                            { model
+                                | mouseStatus = MouseDown
+                                , selection =
+                                    SelectionRange
+                                        { selection
+                                            | to =
+                                                if
+                                                    distanceInPixels audioData model selection.from at
+                                                        |> Maybe.map (\distance -> abs distance > 4)
+                                                        |> Maybe.withDefault False
+                                                then
+                                                    at
 
-                View.Waveform.Move _ ->
-                    pure model
+                                                else
+                                                    selection.to
+                                            , fromTrack = min track selection.fromTrack
+                                            , toTrack = max track selection.toTrack
+                                        }
+                            }
+
+                        _ ->
+                            model
+            )
+                |> pure
 
         AddTrack name ->
             ( model
@@ -450,6 +508,16 @@ update audioData now msg ({ context } as model) =
             ( { model | animationState = newAnimationState }
             , cmd
             , Audio.cmdNone
+            )
+
+
+distanceInPixels : AudioData -> Model -> Duration -> Duration -> Maybe Float
+distanceInPixels audioData model from to =
+    totalLength audioData model
+        |> Maybe.map
+            (\length ->
+                Quantity.ratio (Quantity.minus from to) length
+                    * toFloat (waveviewWidth model)
             )
 
 
@@ -501,25 +569,34 @@ songNameToUrl name =
     Url.Builder.absolute [ "public", name ] []
 
 
-stopOnSongEnd : AudioData -> Model -> Model
-stopOnSongEnd audioData model =
+stopOnSelectionOrSongEnd : AudioData -> Model -> Model
+stopOnSelectionOrSongEnd audioData model =
     case model.playing of
         Playing from ->
-            case totalLength audioData model of
-                Just duration ->
-                    if
-                        Duration.from from model.now
-                            |> Quantity.greaterThanOrEqualTo duration
-                    then
-                        { model | playing = Paused Quantity.zero }
+            let
+                stopAt : Duration
+                stopAt =
+                    case model.selection of
+                        SelectionNone ->
+                            totalLength audioData model
+                                |> Maybe.withDefault Quantity.zero
 
-                    else
-                        model
+                        SelectionRange { to } ->
+                            to
+            in
+            if
+                Duration.from from model.now
+                    |> Quantity.greaterThanOrEqualTo stopAt
+            then
+                { model | playing = Stopped }
 
-                Nothing ->
-                    { model | playing = Paused Quantity.zero }
+            else
+                model
 
         Paused _ ->
+            model
+
+        Stopped ->
             model
 
 
@@ -578,6 +655,19 @@ innerView audioData model playlist =
                         , label = Theme.icon Phosphor.play
                         }
                     , at_
+                    )
+
+                Stopped ->
+                    ( Theme.button []
+                        { onPress = Just PlayPause
+                        , label = Theme.icon Phosphor.play
+                        }
+                    , case model.selection of
+                        SelectionNone ->
+                            Quantity.zero
+
+                        SelectionRange { from } ->
+                            from
                     )
     in
     Theme.column [ height fill ]
@@ -670,9 +760,9 @@ viewTracks audioData model at =
             , Table.column
                 { header = Table.cell [ padding 0 ] Ui.none
                 , view =
-                    \( _, track ) ->
+                    \( index, track ) ->
                         Table.cell [ padding 0, width <| px <| waveviewWidth model ] <|
-                            Ui.map WaveformMsg <|
+                            Ui.map (WaveformMsg index) <|
                                 View.Waveform.view waveformConfig
                                     { track
                                         | mute =
