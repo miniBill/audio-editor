@@ -3,6 +3,7 @@
   "license": "MIT",
   "devDependencies": {
     "elm-review": "^2.10.3",
+    "elm-test-rs": "^3.0.0-5",
     "elm-watch": "^2.0.0-beta.2",
     "travelm-agency": "^3.4.1",
     "uglify-js": "^3.17.4"
