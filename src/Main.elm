@@ -561,15 +561,23 @@ stopOnSelectionOrSongEnd audioData model =
     case model.playing of
         Playing from ->
             let
+                length : Duration
+                length =
+                    totalLength audioData model
+                        |> Maybe.withDefault Quantity.zero
+
                 stopAt : Duration
                 stopAt =
                     case model.selection of
                         SelectionNone ->
-                            totalLength audioData model
-                                |> Maybe.withDefault Quantity.zero
+                            length
 
-                        SelectionRange { to } ->
-                            to
+                        SelectionRange selection ->
+                            if selection.from == selection.to then
+                                length
+
+                            else
+                                Quantity.max selection.from selection.to
             in
             if
                 Duration.from from model.now

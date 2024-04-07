@@ -11,7 +11,7 @@ import MyUi as Ui exposing (Element, centerX, centerY, el)
 import Quantity
 import Theme
 import Translations
-import Types exposing (Point, Selection(..), Track)
+import Types exposing (Point, Track)
 
 
 type Msg
@@ -107,7 +107,9 @@ fragmentShader =
             float normalized_x = (v_position.x / 2. + 0.5 - u_offset) / u_duration;
             vec3 point = texture2D(u_channel, vec2(normalized_x, 0.5)).xyz;
             int pixel_x = int(gl_FragCoord.x - 0.5);
-            if (pixel_x == u_at || (pixel_x == u_selection_from && pixel_x == u_selection_to)) {
+            if (pixel_x == u_at) {
+                gl_FragColor = vec4(0.141, 0.376, 0.18, 1.);
+            } else if (pixel_x == u_selection_from && pixel_x == u_selection_to) {
                 gl_FragColor = vec4(0., 0., 0., 1.);
             } else if (normalized_x < 0. || normalized_x > 1.) {
                 discard;
