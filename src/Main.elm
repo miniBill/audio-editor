@@ -10,7 +10,7 @@ import Json.Decode
 import Json.Encode
 import List.Extra
 import MyUi as Ui exposing (Element, alignBottom, alignRight, centerX, centerY, el, fill, height, padding, px, shrink, spacing, width)
-import MyUi.Anim as Anim
+import MyUi.Anim
 import MyUi.Events as Events
 import MyUi.Font as Font
 import MyUi.Input as Input exposing (Label)
@@ -25,6 +25,7 @@ import Time
 import Translations
 import Types exposing (AudioSummary, Context, Selection(..), Track)
 import Ui as VanillaUi
+import Ui.Anim as Anim
 import Ui.Font
 import Url.Builder
 import View.Waveform
@@ -163,7 +164,7 @@ noAudioError =
 
 outerView : AudioData -> Model -> Html Msg
 outerView audioData model =
-    Anim.layout model.context
+    MyUi.Anim.layout model.context
         { options = []
         , toMsg = AnimMsg
         , breakpoints = Nothing

@@ -9,6 +9,7 @@ import MyUi.Font as Font
 import MyUi.Input as Input
 import Phosphor
 import Translations
+import Ui.Anim
 
 
 fontSizes :
@@ -67,18 +68,17 @@ button attrs config =
                     Nothing ->
                         MyUi.noAttr
                )
-            :: MyUi.Anim.hoveredWith
-                [ [ MyUi.Anim.backgroundColor Color.blue ]
-                    |> MyUi.Anim.step durations.short
+            :: MyUi.Anim.hovered durations.short
+                [ Ui.Anim.backgroundColor <| rgb 0.8 0.8 1
                 ]
             :: attrs
         )
         config.label
 
 
-durations : { short : MyUi.Anim.Duration }
+durations : { short : Ui.Anim.Duration }
 durations =
-    { short = MyUi.Anim.ms 100 }
+    { short = Ui.Anim.ms 150 }
 
 
 toggleButton : List (Attribute msg) -> { active : Bool, onPress : Maybe msg, label : Element msg } -> Element msg
